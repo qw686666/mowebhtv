@@ -1,0 +1,98 @@
+name: 同步上游 Release
+
+on:
+  schedule:
+    - cron: "0 4 * * *"
+
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 检查并同步 Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -e
+
+          SOURCE="Silent1566/webhtv"
+          TARGET="qw686666/mowebhtv"
+
+          echo "======================================"
+          echo "开始检查上游 Release"
+          echo "======================================"
+
+          gh release list \
+            -R "$SOURCE" \
+            --limit 100 \
+            --json tagName,name,isPrerelease,isDraft,publishedAt \
+            > releases.json
+
+          jq -c '.[] | select(.isDraft == false)' releases.json |
+          while read -r release; do
+
+            TAG=$(echo "$release" | jq -r '.tagName')
+            NAME=$(echo "$release" | jq -r '.name')
+            PRERELEASE=$(echo "$release" | jq -r '.isPrerelease')
+
+            echo ""
+            echo "检查：$TAG"
+
+            if gh release view "$TAG" -R "$TARGET" >/dev/null 2>&1; then
+              echo "已存在，跳过：$TAG"
+              continue
+            fi
+
+            echo "发现新 Release：$TAG"
+
+            DIR="release/$TAG"
+            mkdir -p "$DIR"
+
+            echo "获取 Release 描述..."
+
+            gh api \
+              "repos/$SOURCE/releases/tags/$TAG" \
+              --jq '.body' \
+              > "$DIR/notes.md"
+
+            echo "下载 Assets..."
+
+            gh release download "$TAG" \
+              -R "$SOURCE" \
+              -D "$DIR"
+
+            echo "开始创建 Release..."
+
+            if [ "$PRERELEASE" = "true" ]; then
+
+              gh release create "$TAG" \
+                -R "$TARGET" \
+                --title "$NAME" \
+                --notes-file "$DIR/notes.md" \
+                --prerelease \
+                "$DIR"/*
+
+            else
+
+              gh release create "$TAG" \
+                -R "$TARGET" \
+                --title "$NAME" \
+                --notes-file "$DIR/notes.md" \
+                "$DIR"/*
+
+            fi
+
+            echo "同步完成：$TAG"
+
+          done
+
+          echo ""
+          echo "======================================"
+          echo "同步检查完成"
+          echo "======================================"
