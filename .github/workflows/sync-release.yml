@@ -24,8 +24,12 @@ jobs:
           SOURCE="Silent1566/webhtv"
           TARGET="qw686666/mowebhtv"
 
+          # 从这个时间开始同步，包含这个时间点之后的 Release
+          MIN_DATE="2026-08-10T15:55:00Z"
+
           echo "======================================"
           echo "开始检查上游 Release"
+          echo "同步起点：$MIN_DATE"
           echo "======================================"
 
           gh release list \
@@ -40,10 +44,19 @@ jobs:
             TAG=$(echo "$release" | jq -r '.tagName')
             NAME=$(echo "$release" | jq -r '.name')
             PRERELEASE=$(echo "$release" | jq -r '.isPrerelease')
+            PUBLISHED=$(echo "$release" | jq -r '.publishedAt')
 
             echo ""
             echo "检查：$TAG"
+            echo "发布时间：$PUBLISHED"
 
+            # 跳过 2026-08-10 15:55 之前的 Release
+            if [[ "$PUBLISHED" < "$MIN_DATE" ]]; then
+              echo "早于同步起点，跳过：$TAG"
+              continue
+            fi
+
+            # 目标仓库已经存在就跳过
             if gh release view "$TAG" -R "$TARGET" >/dev/null 2>&1; then
               echo "已存在，跳过：$TAG"
               continue
