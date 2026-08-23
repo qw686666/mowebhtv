@@ -59,13 +59,33 @@ public class VideoAspectUiSourceTest {
     }
 
     @Test
-    public void choiceDialogUsesAdaptiveTvHeightAndSequentialDpadFocus() throws Exception {
+    public void choiceDialogAdaptsHeightForMobileAndKeepsSequentialDpadFocus() throws Exception {
         String dialog = read(source("main", "java", "com", "fongmi", "android", "tv", "ui", "dialog", "ChoiceDialog.java"));
-        assertTrue("TV choice list height must adapt to the available screen", dialog.contains("adaptiveListHeight("));
-        assertTrue("TV choice list height must use the actual screen height", dialog.contains("ResUtil.getScreenHeight(requireContext())"));
+        int adaptation = dialog.indexOf("adaptListHeight(window);");
+        int leanbackFocus = dialog.indexOf("if (Util.isLeanback())");
+        assertTrue("choice list height must adapt inside the post-layout callback", dialog.contains("window.getDecorView().post(() -> {"));
+        assertTrue("choice list height must adapt before Leanback-only focus work", adaptation >= 0 && leanbackFocus > adaptation);
+        assertTrue("choice list height must use the post-layout visible window frame", dialog.contains("getWindowVisibleDisplayFrame(frame)"));
+        assertFalse("choice list height must not treat WRAP_CONTENT decor height as the viewport", dialog.contains("adaptiveListHeight(window.getDecorView().getHeight()"));
+        assertFalse("choice list height must not depend on stale orientation metrics", dialog.contains("ResUtil.getScreenHeight(requireContext())"));
+        assertTrue("choice list height must measure the scroll view's direct container", dialog.contains("scroll.getParent() instanceof ViewGroup rootGroup"));
+        assertTrue("choice list height must derive fixed chrome from laid-out root and scroll heights", dialog.contains("calculateDialogChromeHeight(root.getMeasuredHeight(), target.getMeasuredHeight())"));
+        assertTrue("choice list height must recheck after the first layout changes its height", dialog.contains("scroll.post(() -> adaptListHeight(window)"));
         assertTrue("TV choice list must move focus to the next real item", dialog.contains("focusAdjacentItem(position, 1)"));
         assertTrue("TV choice list must move focus to the previous real item", dialog.contains("focusAdjacentItem(position, -1)"));
         assertTrue("the last item must still allow focus to enter the action buttons", dialog.contains("focusFirstAction(root)"));
+    }
+
+    @Test
+    public void choiceDialogHeightKeepsSafeMarginWithoutTrustingClippedWindowHeight() {
+        assertEquals(351, ChoiceDialog.calculateDialogChromeHeight(1075, 724));
+        assertEquals(0, ChoiceDialog.calculateDialogChromeHeight(300, 400));
+        assertEquals(640, ChoiceDialog.calculateAdaptiveListHeight(1000, 56, 1000, 320, 40));
+        assertEquals(24, ChoiceDialog.calculateAdaptiveListHeight(1000, 56, 100, 36, 40));
+        assertEquals(240, ChoiceDialog.calculateAdaptiveListHeight(240, 56, 1000, 320, 40));
+        assertEquals(697, ChoiceDialog.calculateAdaptiveListHeight(724, 56, 1080, 351, 32));
+        assertEquals(16, ChoiceDialog.calculateAdaptiveListHeight(56, 56, 376, 320, 40));
+        assertEquals(68, ChoiceDialog.calculateAdaptiveListHeight(108, 56, 428, 320, 40));
     }
 
     @Test

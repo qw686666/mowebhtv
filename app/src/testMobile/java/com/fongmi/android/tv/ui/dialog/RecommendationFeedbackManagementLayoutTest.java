@@ -11,9 +11,9 @@ import static org.junit.Assert.assertTrue;
 public class RecommendationFeedbackManagementLayoutTest {
 
     @Test
-    public void personalSettingsExposeFeedbackManagementAndCount() throws Exception {
-        String activity = read(findLeanbackJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "ui", "activity", "SettingPersonalActivity.java")));
-        String layout = read(findLeanbackResPath().resolve(Path.of("layout", "activity_setting_personal.xml")));
+    public void aiSettingsExposeFeedbackManagementAndCount() throws Exception {
+        String activity = read(findLeanbackJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "ui", "activity", "SettingAiActivity.java")));
+        String layout = read(findLeanbackResPath().resolve(Path.of("layout", "activity_setting_ai.xml")));
 
         assertTrue(layout.contains("@+id/recommendationFeedback")
                 && layout.contains("@+id/recommendationFeedbackText")
@@ -45,9 +45,9 @@ public class RecommendationFeedbackManagementLayoutTest {
     }
 
     @Test
-    public void mobilePersonalSettingsExposeFeedbackManagementAndDialog() throws Exception {
-        String fragment = read(findMobileJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "ui", "fragment", "SettingPersonalFragment.java")));
-        String layout = read(findMobileResPath().resolve(Path.of("layout", "fragment_setting_personal.xml")));
+    public void mobileAiSettingsExposeFeedbackManagementAndDialog() throws Exception {
+        String fragment = read(findMobileJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "ui", "fragment", "SettingAiFragment.java")));
+        String layout = read(findMobileResPath().resolve(Path.of("layout", "fragment_setting_ai.xml")));
         String dialog = read(findMobileJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "ui", "dialog", "RecommendationFeedbackDialog.java")));
         String dialogLayout = read(findMobileResPath().resolve(Path.of("layout", "dialog_recommendation_feedback.xml")));
         String item = read(findMobileResPath().resolve(Path.of("layout", "adapter_recommendation_feedback.xml")));

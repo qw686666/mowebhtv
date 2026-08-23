@@ -42,8 +42,16 @@ public final class HistoryResumePayload {
             return null;
         }
         if (!isSeasonal(payload)) return current;
-        if (progress == null
-                || progress.cid != current.getCid()
+        // Older History rows may predate the season snapshot table. The route row is
+        // still safe when it represents the exact requested TMDB season.
+        if (progress == null) {
+            return current.getTmdbId() == reference.tmdbId
+                    && current.getTmdbSeasonNumber() == reference.seasonNumber
+                    && TextUtils.equals(TmdbSeasonProgress.normalizeMediaType(current.getMediaType()), reference.mediaType)
+                    ? current : null;
+        }
+
+        if (progress.cid != current.getCid()
                 || progress.tmdbId != reference.tmdbId
                 || progress.seasonNumber != reference.seasonNumber
                 || !TextUtils.equals(TmdbSeasonProgress.normalizeMediaType(progress.mediaType), reference.mediaType)

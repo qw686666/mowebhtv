@@ -1860,11 +1860,22 @@ public class TmdbUIAdapter {
      */
     public List<String> getPhotos() {
         if (tmdbDetail == null) return new ArrayList<>();
+        return tmdbService.backdrops(tmdbDetail, tmdbConfig);
+    }
+
+
+    public List<String> getPosters() {
+        if (tmdbDetail == null) return new ArrayList<>();
+        return tmdbService.posters(tmdbDetail, tmdbConfig);
+    }
+
+    public List<String> getBackgroundPhotos() {
+        if (tmdbDetail == null) return new ArrayList<>();
         return tmdbService.photos(tmdbDetail, tmdbConfig, preferLandscapeBackground());
     }
 
     private boolean preferLandscapeBackground() {
-        return !Util.isMobile() || ResUtil.isPad() || ResUtil.getScreenWidth(activity) >= ResUtil.getScreenHeight(activity);
+        return ResUtil.getScreenWidth(activity) >= ResUtil.getScreenHeight(activity);
     }
 
     /**

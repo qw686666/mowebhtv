@@ -12,6 +12,7 @@ import androidx.room.Ignore;
 import androidx.room.PrimaryKey;
 
 import com.fongmi.android.tv.App;
+import com.fongmi.android.tv.Constant;
 import com.fongmi.android.tv.R;
 import com.fongmi.android.tv.api.SiteApi;
 import com.fongmi.android.tv.api.config.VodConfig;
@@ -47,6 +48,7 @@ public class History implements Diffable<History> {
     private static final Runnable HISTORY_REFRESH = RefreshEvent::history;
     private static final long NEAR_END_MIN_MS = TimeUnit.SECONDS.toMillis(5);
     private static final long NEAR_END_MAX_MS = TimeUnit.SECONDS.toMillis(30);
+    private static final long ENDING_MIN_PLAYED_MS = TimeUnit.MINUTES.toMillis(1);
 
     @NonNull
     @PrimaryKey
@@ -1012,6 +1014,24 @@ public class History implements Diffable<History> {
         long threshold = Math.min(NEAR_END_MAX_MS, Math.max(NEAR_END_MIN_MS, getDuration() / 100));
         long remaining = getDuration() - getPosition();
         return remaining >= 0 && remaining <= threshold;
+    }
+
+    /**
+     * 片尾时间是否已到，可判定本集播完。
+     * ending 存在 History 上，主键不含集数（siteKey##vodId），因此整剧共享同一个值；
+     * 而 duration 来自当前集。若某集明显更短（预告/彩蛋/番外，或源站给了错误时长），
+     * 裸用 ending + position >= duration 会在刚开播、position 还很小时就成立，
+     * 把用户从未看过的一集直接判为播完并跳走。这里要求：
+     * 1) ending 不得超过本集时长所允许的片尾上限——用与设置端相同的
+     *    Constant.getOpEdLimit(duration)，凡是本集根本设不出来的值即为跨集错配；
+     * 2) 至少已播过一小段，排除开播瞬间误判。短视频按时长比例缩放该门槛，
+     *    避免总时长很短时片尾永不触发。
+     */
+    public boolean isEndingReached(long position, long duration) {
+        if (getEnding() <= 0 || duration <= 0 || position < 0) return false;
+        if (getEnding() > Constant.getOpEdLimit(duration)) return false;
+        if (position < Math.min(ENDING_MIN_PLAYED_MS, duration / 4)) return false;
+        return getEnding() + position >= duration;
     }
 
     public void resetPlaybackPosition() {

@@ -177,6 +177,11 @@
     <string name="setting_danmaku">彈幕設定</string>
     <string name="setting_subtitle">字幕設定</string>
     <string name="setting_enhance">增強功能</string>
+    <string name="setting_tmdb">TMDB</string>
+    <string name="setting_ai">AI 服務</string>
+    <string name="setting_ai_group_recommendation">推薦</string>
+    <string name="setting_ai_group_detection">內容識別</string>
+    <string name="setting_ai_group_subtitle">字幕</string>
     <string name="setting_search_thread">搜尋線程</string>
     <string name="setting_personal">個性設定</string>
     <string name="setting_group_rule">分組規則</string>
@@ -1625,8 +1630,6 @@
 
     <string name="setting_tmdb_source">TMDB 數據配置</string>
     <string name="setting_ai_recommendation">AI 通用配置</string>
-    <string name="setting_tmdb_model">TMDB 交互模型</string>
-    <string name="setting_tmdb_model_native">原生增強</string>
     <string name="setting_tmdb_match_mode">TMDB 匹配模式</string>
     <string name="setting_detail_open_mode">詳情頁模式</string>
     <string name="setting_detail_open_original">原始詳情</string>
@@ -1705,8 +1708,10 @@
     <string name="tmdb_loading_episodes">正在載入劇集資訊...</string>
     <string name="tmdb_powered_by">數據來源：TMDB</string>
     <string name="tmdb_photos_label">劇照</string>
+    <string name="tmdb_posters_label">海報</string>
     <string name="tmdb_crew_label">主創團隊</string>
     <string name="tmdb_recommendations_label">猜你喜歡</string>
+    <string name="tmdb_related_videos_label">相關視頻</string>
     <string name="tmdb_personal_recommendations_tmdb_label">個性推薦 · TMDB</string>
     <string name="tmdb_personal_recommendations_douban_label">個性推薦 · 豆瓣</string>
     <string name="tmdb_personal_recommendations_ai_label">個性推薦 · 智能</string>
@@ -1759,6 +1764,7 @@
     <string name="detail_image_permission_denied">儲存權限被拒絕</string>
 
     <string name="detail_tmdb_photos">劇照</string>
+    <string name="detail_tmdb_posters">海報</string>
     <string name="detail_no_overview">暫無簡介</string>
     <string name="detail_image_rotate">旋轉</string>
     <string name="tmdb_external_links_label">外部連結</string>
@@ -2320,7 +2326,7 @@
     <string name="detail_site_not_searchable">當前站源不支持搜索</string>
     <string name="viewing_report_refreshing">刷新報告中...</string>
     <string name="setting_ai_ad_detection">AI 智能去廣</string>
-    <string name="setting_ad_rule_manage">規則管理</string>
+    <string name="setting_ad_rule_manage">廣告規則管理</string>
     <string name="ad_rule_add_manual">手動添加規則</string>
     <string name="ad_rule_import_candidates">待審覈接口規則（%d）</string>
     <string name="ad_rule_import_title">導入接口去廣規則</string>

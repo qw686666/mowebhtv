@@ -356,6 +356,13 @@ public class TmdbService {
         return TmdbImageSelector.backgrounds(detail, config.getImageBase(), config.getBackdropBase(), preferLandscape, 24);
     }
 
+    public List<String> backdrops(JsonObject detail, @NonNull TmdbConfig config) {
+        return TmdbImageSelector.backdrops(detail, config.getBackdropBase(), 24);
+    }
+
+    public List<String> posters(JsonObject detail, @NonNull TmdbConfig config) {
+        return TmdbImageSelector.posters(detail, config.getImageBase(), 24);
+    }
     public List<String> seasonPhotos(JsonObject season, @NonNull TmdbConfig config) {
         return photos(season, config);
     }

@@ -138,17 +138,25 @@ public class TmdbSearchDialog {
     private void configureWindow() {
         DisplayMetrics metrics = activity.getResources().getDisplayMetrics();
         boolean landscape = metrics.widthPixels > metrics.heightPixels;
-        int chromeHeight = dp(searchListener != null ? 250 : 180);
-        int listHeight = Math.min(dp(320), Math.max(dp(180), metrics.heightPixels - chromeHeight));
+        boolean leanback = Util.isLeanback();
+        int chromeHeight = dp(searchListener != null ? (leanback ? 300 : 250) : (leanback ? 220 : 180));
+        int availableListHeight = Math.max(1, metrics.heightPixels - chromeHeight);
+        int minimumListHeight = Math.min(dp(leanback ? 240 : 180), availableListHeight);
+        int preferredListHeight = leanback
+                ? Math.round(metrics.heightPixels * 0.52f)
+                : dp(320);
+        int listHeight = Math.max(minimumListHeight, Math.min(availableListHeight, preferredListHeight));
         ViewGroup.LayoutParams params = binding.recycler.getLayoutParams();
         params.height = listHeight;
         binding.recycler.setLayoutParams(params);
 
         Window window = dialog.getWindow();
         if (window == null) return;
-        int horizontalMargin = dp(landscape ? 96 : 32);
-        int availableWidth = Math.max(dp(280), metrics.widthPixels - horizontalMargin);
-        int dialogWidth = Math.min(dp(760), Math.min(metrics.widthPixels - dp(16), availableWidth));
+        int horizontalMargin = dp(landscape ? (leanback ? 64 : 96) : 32);
+        int availableWidth = Math.max(1, metrics.widthPixels - horizontalMargin);
+        int minimumWidth = Math.min(dp(leanback ? 720 : 280), availableWidth);
+        int preferredWidth = leanback ? Math.round(metrics.widthPixels * 0.88f) : dp(760);
+        int dialogWidth = Math.max(minimumWidth, Math.min(preferredWidth, availableWidth));
         window.clearFlags(WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM);
         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
         window.setDimAmount(0);

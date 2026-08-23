@@ -606,6 +606,11 @@ public class PlayerManager implements ParseCallback {
         return networkProtectionMediaBitrate;
     }
 
+    /** Runtime metrics reported by the active native engine, or unknown when absent. */
+    public PlayerEngine.RuntimeMetrics getRuntimeMetrics() {
+        return engine == null ? PlayerEngine.RuntimeMetrics.unknown() : engine.getRuntimeMetrics();
+    }
+
     public long getNetworkProtectionStableThroughput() {
         return networkProtectionMediaBitrate <= 0 ? 0 : Math.max(0, Math.round(networkProtectionMediaBitrate * networkProtectionSupportedSpeed));
     }

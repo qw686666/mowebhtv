@@ -11,17 +11,13 @@ public class UpdateDialogLayoutTest {
     private static final int SCREEN_HEIGHT = 1080;
     private static final int NORMAL_MIN_HEIGHT = 220;
     private static final int NORMAL_MAX_HEIGHT = 320;
-    private static final int DOWNLOAD_MIN_HEIGHT = 160;
 
     @Test
     public void normalStateKeepsOriginalScrollHeight() {
-        int height = UpdateDialogLayout.calculateScrollHeight(
+        int height = UpdateDialogLayout.calculatePreferredScrollHeight(
                 SCREEN_HEIGHT,
                 NORMAL_MIN_HEIGHT,
-                NORMAL_MAX_HEIGHT,
-                DOWNLOAD_MIN_HEIGHT,
-                false,
-                80);
+                NORMAL_MAX_HEIGHT);
 
         assertEquals(NORMAL_MAX_HEIGHT, height);
     }
@@ -41,29 +37,25 @@ public class UpdateDialogLayoutTest {
     }
 
     @Test
-    public void downloadStateReservesProgressPanelHeight() {
-        int height = UpdateDialogLayout.calculateScrollHeight(
+    public void downloadStateKeepsPreferredHeightWhenWindowHasRoom() {
+        int preferredHeight = UpdateDialogLayout.calculatePreferredScrollHeight(
                 SCREEN_HEIGHT,
                 NORMAL_MIN_HEIGHT,
-                NORMAL_MAX_HEIGHT,
-                DOWNLOAD_MIN_HEIGHT,
-                true,
-                80);
+                NORMAL_MAX_HEIGHT);
+        int fittedHeight = UpdateDialogLayout.fitScrollHeight(preferredHeight, 900, 480, 90);
 
-        assertEquals(240, height);
+        assertEquals(NORMAL_MAX_HEIGHT, fittedHeight);
     }
 
     @Test
-    public void downloadStateKeepsMinimumScrollHeight() {
-        int height = UpdateDialogLayout.calculateScrollHeight(
+    public void smallWindowStillShrinksTheListForProgressAndActions() {
+        int preferredHeight = UpdateDialogLayout.calculatePreferredScrollHeight(
                 SCREEN_HEIGHT,
                 NORMAL_MIN_HEIGHT,
-                NORMAL_MAX_HEIGHT,
-                DOWNLOAD_MIN_HEIGHT,
-                true,
-                200);
+                NORMAL_MAX_HEIGHT);
+        int fittedHeight = UpdateDialogLayout.fitScrollHeight(preferredHeight, 600, 400, 50);
 
-        assertEquals(DOWNLOAD_MIN_HEIGHT, height);
+        assertEquals(150, fittedHeight);
     }
 
     @Test
@@ -72,17 +64,26 @@ public class UpdateDialogLayoutTest {
     }
 
     @Test
-    public void changedProgressPanelHeightTriggersRelayoutAndRecalculatesScrollHeight() {
-        int height = UpdateDialogLayout.calculateScrollHeight(
-                SCREEN_HEIGHT,
-                NORMAL_MIN_HEIGHT,
-                NORMAL_MAX_HEIGHT,
-                DOWNLOAD_MIN_HEIGHT,
-                true,
-                112);
-
+    public void changedProgressPanelHeightTriggersRelayout() {
         assertTrue(UpdateDialogLayout.hasProgressPanelHeightChanged(-1, 80));
         assertTrue(UpdateDialogLayout.hasProgressPanelHeightChanged(80, 112));
-        assertEquals(208, height);
     }
+
+    @Test
+    public void smallScreenUsesMoreWidthForUpdateContent() {
+        assertEquals(604, UpdateDialogLayout.calculateDialogWidth(720, 960, 96));
+    }
+
+    @Test
+    public void smallScreenUsesAProportionalVerticalMargin() {
+        assertEquals(48, UpdateDialogLayout.calculateVerticalMargin(480, 96));
+        assertEquals(96, UpdateDialogLayout.calculateVerticalMargin(1080, 96));
+    }
+
+    @Test
+    public void availableHeightUsesTheTightestKnownWindowBounds() {
+        assertEquals(900, UpdateDialogLayout.resolveAvailableHeight(1080, 900, 960));
+        assertEquals(720, UpdateDialogLayout.resolveAvailableHeight(1080, 0, 720));
+    }
+
 }

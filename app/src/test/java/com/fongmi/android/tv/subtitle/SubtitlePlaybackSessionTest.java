@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class SubtitlePlaybackSessionTest {
@@ -48,18 +49,93 @@ public class SubtitlePlaybackSessionTest {
     }
 
     @Test
-    public void onPlaybackStarted_withProvidedSubtitleStopsMatching() {
+    public void onPlaybackStarted_withProvidedSubtitleSkipsAutoMatchButKeepsManualSearch() {
         FakeController controller = new FakeController();
         FakeRequestFactory requestFactory = new FakeRequestFactory();
         FakeHost host = new FakeHost();
         SubtitlePlaybackSession session = new SubtitlePlaybackSession(host, controller, requestFactory, new SubtitleInjector(), new FakeResultApplier());
+        controller.manualResult = SubtitleMatchResult.noMatch(Collections.emptyList(), "empty_result");
+        List<SubtitleMatchResult> results = new ArrayList<>();
 
         Result result = result("https://play/1.m3u8");
         result.setSubs(Collections.singletonList(Sub.create("外挂字幕", "https://sub/1.srt", "zh", "application/x-subrip")));
         session.onPlaybackStarted(host, result);
+        session.manualSearch(host, "想见你", (request, matchResult, applied) -> results.add(matchResult));
 
-        assertTrue(requestFactory.triggers.isEmpty());
+        assertTrue(controller.playbackStarted.isEmpty());
         assertEquals(List.of("playback-1"), controller.stoppedKeys);
+        assertEquals(1, controller.manualSearches.size());
+        assertEquals(SubtitleMatchStatus.NO_MATCH, results.get(0).getStatus());
+    }
+
+    @Test
+    public void manualSearch_rebuildsRequestWhenSessionStoppedButPlaybackAlive() {
+        FakeController controller = new FakeController();
+        FakeRequestFactory requestFactory = new FakeRequestFactory();
+        FakeHost host = new FakeHost();
+        SubtitlePlaybackSession session = new SubtitlePlaybackSession(host, controller, requestFactory, new SubtitleInjector(), new FakeResultApplier());
+        controller.manualResult = SubtitleMatchResult.noMatch(Collections.emptyList(), "empty_result");
+        List<SubtitleMatchResult> results = new ArrayList<>();
+
+        session.onPlaybackStarted(host, result("https://play/1.m3u8"));
+        session.stop(host);
+        host.playbackResult = result("https://play/1.m3u8");
+        session.manualSearch(host, "想见你", (request, result, applied) -> results.add(result));
+
+        assertEquals(List.of(SubtitleTrigger.AUTO_PLAY, SubtitleTrigger.MANUAL_SEARCH), requestFactory.triggers);
+        assertEquals(1, controller.manualSearches.size());
+        assertEquals(SubtitleMatchStatus.NO_MATCH, results.get(0).getStatus());
+    }
+
+    @Test
+    public void manualSearch_reportsInactiveOnlyWhenHostNotPlaying() {
+        FakeController controller = new FakeController();
+        FakeRequestFactory requestFactory = new FakeRequestFactory();
+        FakeHost host = new FakeHost();
+        SubtitlePlaybackSession session = new SubtitlePlaybackSession(host, controller, requestFactory, new SubtitleInjector(), new FakeResultApplier());
+        List<SubtitleMatchResult> results = new ArrayList<>();
+
+        host.hostActive = false;
+        session.manualSearch(host, "想见你", (request, result, applied) -> results.add(result));
+
+        assertTrue(controller.manualSearches.isEmpty());
+        assertEquals(SubtitleMatchStatus.ERROR, results.get(0).getStatus());
+        assertEquals("inactive", results.get(0).getReason());
+    }
+
+    @Test
+    public void getManualSearchKeyword_returnsKeywordAfterSessionStopped() {
+        FakeController controller = new FakeController();
+        FakeRequestFactory requestFactory = new FakeRequestFactory();
+        requestFactory.tmdbTitle = "镖人：风起大漠";
+        requestFactory.vodYear = "2026";
+        FakeHost host = new FakeHost();
+        SubtitlePlaybackSession session = new SubtitlePlaybackSession(host, controller, requestFactory, new SubtitleInjector(), new FakeResultApplier());
+
+        session.onPlaybackStarted(host, result("https://play/1.m3u8"));
+        session.stop(host);
+        host.playbackResult = result("https://play/1.m3u8");
+
+        assertEquals("镖人：风起大漠 2026", session.getManualSearchKeyword(host));
+    }
+
+    @Test
+    public void getManualSearchKeyword_doesNotReviveStoppedSession() {
+        FakeController controller = new FakeController();
+        FakeRequestFactory requestFactory = new FakeRequestFactory();
+        FakeResultApplier applier = new FakeResultApplier();
+        FakeHost host = new FakeHost();
+        SubtitlePlaybackSession session = new SubtitlePlaybackSession(host, controller, requestFactory, new SubtitleInjector(), applier);
+        SubtitleAsset asset = new SubtitleAsset("file:///subtitle.srt", "/tmp/subtitle.srt", "字幕", "zh", "application/x-subrip", 0, false, 0L);
+
+        session.onPlaybackStarted(host, result("https://play/1.m3u8"));
+        session.stop(host);
+        host.playbackResult = result("https://play/1.m3u8");
+        session.getManualSearchKeyword(host);
+
+        // 仅读取关键词不应恢复会话，避免用户取消搜索后残留活跃状态
+        assertFalse(session.applySubtitleAsset(host, asset));
+        assertTrue(applier.applied.isEmpty());
     }
 
     @Test
@@ -316,6 +392,8 @@ public class SubtitlePlaybackSessionTest {
     private static final class FakeHost implements SubtitlePlaybackSession.Host {
 
         private Episode episode = Episode.create("第1集", "ep1", "https://episode/1");
+        private boolean hostActive = true;
+        private Result playbackResult;
 
         @Override
         public String getSubtitlePlaybackKey() {
@@ -357,7 +435,12 @@ public class SubtitlePlaybackSessionTest {
 
         @Override
         public boolean isSubtitleHostActive() {
-            return true;
+            return hostActive;
+        }
+
+        @Override
+        public Result getSubtitlePlaybackResult() {
+            return playbackResult;
         }
     }
 }

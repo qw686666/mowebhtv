@@ -3,6 +3,7 @@ package com.fongmi.android.tv.ui.dialog;
 import android.app.Dialog;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
+import android.graphics.Rect;
 import android.graphics.drawable.ColorDrawable;
 import android.text.TextUtils;
 import android.util.TypedValue;
@@ -257,9 +258,9 @@ public final class ChoiceDialog extends DialogFragment {
         window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
         window.setAttributes(params);
         window.setLayout(params.width, params.height);
-        if (Util.isLeanback()) window.getDecorView().post(() -> {
+        window.getDecorView().post(() -> {
             adaptListHeight(window);
-            window.getDecorView().post(this::focusSelectedItem);
+            if (Util.isLeanback()) window.getDecorView().post(this::focusSelectedItem);
         });
     }
 
@@ -280,20 +281,46 @@ public final class ChoiceDialog extends DialogFragment {
     private void adaptListHeight(Window window) {
         View root = viewRoot();
         View listView = root == null ? null : root.findViewWithTag("choice_list");
-        if (!(listView instanceof ViewGroup list) || !(list.getParent() instanceof ScrollView scroll)) return;
-        int height = adaptiveListHeight(window.getDecorView().getHeight(), scroll.getHeight());
+        if (!(listView instanceof ViewGroup list) || !(list.getParent() instanceof ScrollView scroll) || !(scroll.getParent() instanceof ViewGroup rootGroup)) return;
+        int chrome = dialogChromeHeight(rootGroup, scroll);
+        int windowHeight = availableWindowHeight(window);
+        if (windowHeight <= 0) return;
+        int height = adaptiveListHeight(windowHeight, chrome);
         ViewGroup.LayoutParams params = scroll.getLayoutParams();
         if (params.height == height) return;
         params.height = height;
         scroll.setLayoutParams(params);
         window.setLayout(window.getAttributes().width, WindowManager.LayoutParams.WRAP_CONTENT);
+        scroll.post(() -> adaptListHeight(window));
     }
 
-    private int adaptiveListHeight(int dialogHeight, int currentListHeight) {
+    private int availableWindowHeight(Window window) {
+        Rect frame = new Rect();
+        window.getDecorView().getWindowVisibleDisplayFrame(frame);
+        return frame.height();
+    }
+
+    private int dialogChromeHeight(ViewGroup root, View target) {
+        return calculateDialogChromeHeight(root.getMeasuredHeight(), target.getMeasuredHeight());
+    }
+
+    static int calculateDialogChromeHeight(int rootHeight, int targetHeight) {
+        return Math.max(0, rootHeight - targetHeight);
+    }
+
+    private int adaptiveListHeight(int screenHeight, int chromeHeight) {
         int desired = Math.max(dp(56), items.length * dp(54));
-        int chrome = Math.max(0, dialogHeight - currentListHeight);
-        int available = ResUtil.getScreenHeight(requireContext()) - dp(32) - chrome;
-        return Math.min(desired, Math.max(dp(56), available));
+        return calculateAdaptiveListHeight(desired, dp(56), screenHeight, chromeHeight, dp(32));
+    }
+
+    static int calculateAdaptiveListHeight(int desiredHeight, int minHeight, int screenHeight, int chromeHeight, int safeMargin) {
+        int desired = Math.max(0, Math.max(minHeight, desiredHeight));
+        int viewport = Math.max(0, screenHeight);
+        int chrome = Math.max(0, chromeHeight);
+        int margin = Math.max(0, safeMargin);
+        if ((long) chrome + desired + margin <= viewport) return desired;
+        int available = Math.max(0, viewport - chrome - margin);
+        return Math.min(desired, available);
     }
 
     private boolean focusAdjacentItem(int position, int direction) {

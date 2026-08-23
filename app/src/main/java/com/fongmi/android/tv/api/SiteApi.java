@@ -180,12 +180,27 @@ public class SiteApi {
 
     @NonNull
     public static Result playerContent(@NonNull String key, @NonNull String flag, @NonNull String id, int playerType) throws Exception {
+        return playerContent(key, flag, id, playerType, Source.get(), true);
+    }
+
+    @NonNull
+    public static Result playerContentIsolated(@NonNull String key, @NonNull String flag, @NonNull String id) throws Exception {
+        return playerContentIsolated(key, flag, id, PlayerSetting.getPlayer());
+    }
+
+    @NonNull
+    public static Result playerContentIsolated(@NonNull String key, @NonNull String flag, @NonNull String id, int playerType) throws Exception {
+        return playerContent(key, flag, id, playerType, new Source(), false);
+    }
+
+    @NonNull
+    private static Result playerContent(@NonNull String key, @NonNull String flag, @NonNull String id, int playerType, @NonNull Source source, boolean stopSource) throws Exception {
         SpiderDebug.log("player", "key=%s,flag=%s,id=%s", key, flag, id);
-        Source.get().stop();
+        if (stopSource) source.stop();
         if (WebHomeInlineVodStore.KEY.equals(key)) return WebHomeInlineVodStore.player(flag, id);
         Site site = VodConfig.get().getSite(key);
         String requestId = PUSH.equals(key) ? resolvePushPlayerUrl(id) : id;
-        if (PUSH.equals(key) && (site.isEmpty() || isLocalFileUrl(requestId))) return pushPlayer(flag, requestId, playerType);
+        if (PUSH.equals(key) && (site.isEmpty() || isLocalFileUrl(requestId))) return pushPlayer(flag, requestId, playerType, source);
         if (site.getType() == 3) {
             String fallbackReason;
             try {
@@ -196,7 +211,7 @@ public class SiteApi {
                     fallbackReason = result == null ? "" : result.getMsg();
                 } else {
                     if (result.getFlag().isEmpty()) result.setFlag(flag);
-                    result.setUrl(Source.get().fetch(result, playerType));
+                    result.setUrl(source.fetch(result, playerType));
                     result.setHeader(site.getHeader());
                     result.setKey(key);
                     return result;
@@ -205,7 +220,7 @@ public class SiteApi {
                 if (PUSH.equals(key)) fallbackReason = e.getMessage();
                 else throw e;
             }
-            return fallbackPushPlayer(flag, requestId, playerType, fallbackReason);
+            return fallbackPushPlayer(flag, requestId, playerType, fallbackReason, source);
         } else if (site.getType() == 4) {
             String fallbackReason;
             try {
@@ -219,7 +234,7 @@ public class SiteApi {
                     fallbackReason = result == null ? "" : result.getMsg();
                 } else {
                     if (result.getFlag().isEmpty()) result.setFlag(flag);
-                    result.setUrl(Source.get().fetch(result, playerType));
+                    result.setUrl(source.fetch(result, playerType));
                     result.setHeader(site.getHeader());
                     return result;
                 }
@@ -227,7 +242,7 @@ public class SiteApi {
                 if (PUSH.equals(key)) fallbackReason = e.getMessage();
                 else throw e;
             }
-            return fallbackPushPlayer(flag, requestId, playerType, fallbackReason);
+            return fallbackPushPlayer(flag, requestId, playerType, fallbackReason, source);
         } else {
             Result result = new Result();
             result.setUrl(requestId);
@@ -235,7 +250,7 @@ public class SiteApi {
             result.setHeader(site.getHeader());
             result.setPlayUrl(site.getPlayUrl());
             result.setParse(Sniffer.isVideoFormat(requestId) && result.getPlayUrl().isEmpty() ? 0 : 1);
-            result.setUrl(Source.get().fetch(result, playerType));
+            result.setUrl(source.fetch(result, playerType));
             SpiderDebug.log("player", result.toString());
             return result;
         }
@@ -264,17 +279,17 @@ public class SiteApi {
         return PUSH.equals(key) && (result == null || result.hasMsg() || result.getUrl().isEmpty());
     }
 
-    private static Result fallbackPushPlayer(String flag, String url, int playerType, String reason) throws Exception {
+    private static Result fallbackPushPlayer(String flag, String url, int playerType, String reason, Source source) throws Exception {
         SpiderDebug.log("player", "push site fallback reason=%s", TextUtils.isEmpty(reason) ? "empty result" : reason);
-        return pushPlayer(flag, url, playerType);
+        return pushPlayer(flag, url, playerType, source);
     }
 
-    private static Result pushPlayer(String flag, String url, int playerType) throws Exception {
+    private static Result pushPlayer(String flag, String url, int playerType, Source source) throws Exception {
         Result result = new Result();
         result.setUrl(url);
         result.setParse(shouldSniffPushUrl(url) ? 1 : 0);
         result.setFlag(flag);
-        result.setUrl(Source.get().fetch(result, playerType));
+        result.setUrl(source.fetch(result, playerType));
         SpiderDebug.log("player", result.toString());
         return result;
     }

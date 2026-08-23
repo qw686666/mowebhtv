@@ -134,6 +134,8 @@ public class SettingFragment extends BaseFragment implements ConfigListener, Sit
         mBinding.cache.setOnClickListener(this::onCache);
         mBinding.backup.setOnClickListener(this::onBackup);
         mBinding.enhance.setOnClickListener(this::onEnhance);
+        mBinding.tmdb.setOnClickListener(this::onTmdb);
+        mBinding.ai.setOnClickListener(this::onAi);
         mBinding.personal.setOnClickListener(this::onPersonal);
         mBinding.player.setOnClickListener(this::onPlayer);
         mBinding.danmaku.setOnClickListener(this::onDanmaku);
@@ -274,6 +276,14 @@ public class SettingFragment extends BaseFragment implements ConfigListener, Sit
 
     private void onEnhance(View view) {
         getRoot().change(3);
+    }
+
+    private void onTmdb(View view) {
+        getRoot().change(7);
+    }
+
+    private void onAi(View view) {
+        getRoot().change(8);
     }
 
     private void onPersonal(View view) {

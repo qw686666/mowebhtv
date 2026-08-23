@@ -18,29 +18,46 @@ public class TmdbImageSelector {
     }
 
     public static List<String> backgrounds(JsonObject detail, String imageBase, String backdropBase, boolean preferLandscape, int limit) {
+        List<String> preferred = preferLandscape
+                ? backdrops(detail, backdropBase, limit)
+                : posters(detail, imageBase, limit);
+        if (!preferred.isEmpty()) return preferred;
+        return preferLandscape
+                ? posters(detail, imageBase, limit)
+                : backdrops(detail, backdropBase, limit);
+    }
+
+
+    public static List<String> backdrops(JsonObject detail, String backdropBase, int limit) {
         List<Candidate> candidates = new ArrayList<>();
         addImages(candidates, detail, "backdrops", backdropBase, Orientation.LANDSCAPE);
-        addImages(candidates, detail, "posters", imageBase, Orientation.PORTRAIT);
         addRootImage(candidates, detail, "backdrop_path", backdropBase, Orientation.LANDSCAPE);
+        return urls(candidates, limit);
+    }
+
+    public static List<String> posters(JsonObject detail, String imageBase, int limit) {
+        List<Candidate> candidates = new ArrayList<>();
+        addImages(candidates, detail, "posters", imageBase, Orientation.PORTRAIT);
         addRootImage(candidates, detail, "poster_path", imageBase, Orientation.PORTRAIT);
-        Orientation preferred = preferLandscape ? Orientation.LANDSCAPE : Orientation.PORTRAIT;
-        List<Candidate> selected = filter(candidates, preferred);
-        if (selected.isEmpty()) selected = filter(candidates, preferLandscape ? Orientation.PORTRAIT : Orientation.LANDSCAPE);
-        if (selected.isEmpty()) selected = candidates;
-        selected.sort(Comparator
+        return urls(candidates, limit);
+    }
+
+    private static List<String> urls(List<Candidate> candidates, int limit) {
+        candidates.sort(Comparator
                 .comparingInt((Candidate item) -> item.sourceRank)
                 .thenComparing(Comparator.comparingLong((Candidate item) -> item.pixels).reversed())
                 .thenComparing(Comparator.comparingDouble((Candidate item) -> item.voteAverage).reversed())
                 .thenComparing(Comparator.comparingInt((Candidate item) -> item.voteCount).reversed()));
         List<String> urls = new ArrayList<>();
         int max = limit <= 0 ? Integer.MAX_VALUE : limit;
-        for (Candidate candidate : selected) {
+        for (Candidate candidate : candidates) {
             if (urls.contains(candidate.url)) continue;
             urls.add(candidate.url);
             if (urls.size() >= max) break;
         }
         return urls;
     }
+
 
     public static String poster(JsonObject detail, String imageBase, String fallback) {
         List<Candidate> candidates = new ArrayList<>();

@@ -76,6 +76,7 @@ public class TmdbHeaderView {
             R.id.tmdbCastLabel,
             R.id.tmdbCrewLabel,
             R.id.tmdbPhotosLabel,
+            R.id.tmdbPostersLabel,
             R.id.tmdbExternalLinksLabel,
             R.id.tmdbRecommendationsLabel,
             R.id.tmdbRelatedVideosLabel,
@@ -117,6 +118,7 @@ public class TmdbHeaderView {
     private View headerRoot;
     private TmdbCastAdapter castAdapter;
     private com.fongmi.android.tv.ui.adapter.TmdbPhotoAdapter photoAdapter;
+    private com.fongmi.android.tv.ui.adapter.TmdbPhotoAdapter posterAdapter;
     private TmdbCastAdapter crewAdapter;
     private com.fongmi.android.tv.ui.adapter.TmdbRecommendationAdapter personalTmdbRecommendationAdapter;
     private com.fongmi.android.tv.ui.adapter.TmdbRecommendationAdapter personalDoubanRecommendationAdapter;
@@ -329,14 +331,27 @@ public class TmdbHeaderView {
         }
 
         // 剧照
-        if (!adapter.getPhotos().isEmpty()) {
+        java.util.List<String> photos = adapter.getPhotos();
+        if (!photos.isEmpty()) {
             headerRoot.findViewById(R.id.tmdbPhotosLabel).setVisibility(View.VISIBLE);
             RecyclerView photosRv = headerRoot.findViewById(R.id.tmdbPhotos);
             photosRv.setVisibility(View.VISIBLE);
-            photoAdapter.setItems(adapter.getPhotos());
+            photoAdapter.setItems(photos);
         } else {
             headerRoot.findViewById(R.id.tmdbPhotosLabel).setVisibility(View.GONE);
             headerRoot.findViewById(R.id.tmdbPhotos).setVisibility(View.GONE);
+        }
+
+        // 海报
+        java.util.List<String> posters = adapter.getPosters();
+        if (!posters.isEmpty()) {
+            headerRoot.findViewById(R.id.tmdbPostersLabel).setVisibility(View.VISIBLE);
+            RecyclerView postersRv = headerRoot.findViewById(R.id.tmdbPosters);
+            postersRv.setVisibility(View.VISIBLE);
+            posterAdapter.setItems(posters);
+        } else {
+            headerRoot.findViewById(R.id.tmdbPostersLabel).setVisibility(View.GONE);
+            headerRoot.findViewById(R.id.tmdbPosters).setVisibility(View.GONE);
         }
 
         // 主创团队
@@ -463,6 +478,11 @@ public class TmdbHeaderView {
         photoAdapter = new com.fongmi.android.tv.ui.adapter.TmdbPhotoAdapter();
         photoAdapter.setOnItemClickListener(this::onPhotoClick);
         photosRv.setAdapter(photoAdapter);
+
+        RecyclerView postersRv = headerRoot.findViewById(R.id.tmdbPosters);
+        posterAdapter = new com.fongmi.android.tv.ui.adapter.TmdbPhotoAdapter(true);
+        posterAdapter.setOnItemClickListener(this::onPosterClick);
+        postersRv.setAdapter(posterAdapter);
 
         RecyclerView crewRv = headerRoot.findViewById(R.id.tmdbCrew);
         crewAdapter = new TmdbCastAdapter();
@@ -652,6 +672,13 @@ public class TmdbHeaderView {
         com.fongmi.android.tv.ui.dialog.PhotoViewerDialog.show(activity, photos, position, null);
     }
 
+
+    private void onPosterClick(String url, int position) {
+        if (TextUtils.isEmpty(url)) return;
+        java.util.List<String> posters = posterAdapter.getItems();
+        com.fongmi.android.tv.ui.dialog.PhotoViewerDialog.show(activity, posters, position, null);
+    }
+
     /**
      * 点击演员/主创：显示简介弹窗。
      */
@@ -804,7 +831,7 @@ public class TmdbHeaderView {
 
         // 收集所有可用的背景图，优先使用已按设备方向与清晰度筛选的图片。
         backdropPhotos.clear();
-        java.util.List<String> photos = adapter.getPhotos();
+        java.util.List<String> photos = adapter.getBackgroundPhotos();
         android.util.Log.d("TmdbHeaderView", "setupBackdropSlideshow: photos count=" + (photos != null ? photos.size() : 0));
         if (photos != null) {
             for (String photo : photos) {
@@ -814,11 +841,6 @@ public class TmdbHeaderView {
                 }
             }
         }
-        String mainBackdrop = TmdbImageSelector.originalUrl(item.getBackdropUrl());
-        if (!TextUtils.isEmpty(mainBackdrop) && !backdropPhotos.contains(mainBackdrop)) {
-            backdropPhotos.add(mainBackdrop);
-        }
-
         android.util.Log.d("TmdbHeaderView", "setupBackdropSlideshow: total backdropPhotos=" + backdropPhotos.size());
 
         // 如果只有一张图，直接加载
@@ -1528,6 +1550,7 @@ public class TmdbHeaderView {
         setTextColor(R.id.tmdbCastLabel, primary);
         setTextColor(R.id.tmdbCrewLabel, primary);
         setTextColor(R.id.tmdbPhotosLabel, primary);
+        setTextColor(R.id.tmdbPostersLabel, primary);
         setTextColor(R.id.tmdbExternalLinksLabel, primary);
         setTextColor(R.id.tmdbRecommendationsLabel, primary);
         setTextColor(R.id.tmdbPersonalTmdbRecommendationsLabel, primary);
@@ -1736,6 +1759,10 @@ public class TmdbHeaderView {
         setTopMargin(R.id.tmdbCrew, 12);
         setTopMargin(R.id.tmdbPhotosLabel, 24);
         setTopMargin(R.id.tmdbPhotos, 12);
+        setTopMargin(R.id.tmdbPostersLabel, 24);
+        setTopMargin(R.id.tmdbPosters, 12);
+        setTopMargin(R.id.tmdbRelatedVideosLabel, 24);
+        setTopMargin(R.id.tmdbRelatedVideos, 12);
         setTopMargin(R.id.tmdbExternalLinksLabel, 24);
         setTopMargin(R.id.tmdbExternalLinks, 12);
         setTopMargin(R.id.tmdbRecommendationsLabel, 24);

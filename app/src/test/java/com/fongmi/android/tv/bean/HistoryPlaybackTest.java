@@ -645,6 +645,103 @@ public class HistoryPlaybackTest {
     }
 
 
+    @Test
+    public void endingIsReachedOnceTheEpisodeHasActuallyPlayedPastIt() {
+        History history = new History();
+        history.setEnding(120_000);
+
+        // 45 分钟正片，片尾 2 分钟：播到 43 分钟时判定播完。
+        assertTrue(history.isEndingReached(2_580_000, 2_700_000));
+        // 同一集播到一半，还没进片尾区间。
+        assertFalse(history.isEndingReached(1_350_000, 2_700_000));
+    }
+
+    @Test
+    public void sharedEndingDoesNotInstantlyFinishAShorterEpisode() {
+        History history = new History();
+        // ending 存在 History 上（主键不含集数），整剧共享；用户在 45 分钟正片上设了 10 分钟片尾。
+        history.setEnding(600_000);
+
+        // 切到 3 分钟的预告片：裸判定 600000 + 0 >= 180000 会立刻成立，把没看过的一集判为播完。
+        // 3 分钟视频的片尾上限是 3 分钟，10 分钟远超之，属跨集错配。
+        assertFalse(history.isEndingReached(0, 180_000));
+        // 即使播了一会儿，ending 相对本集时长仍然离谱，不该判完。
+        assertFalse(history.isEndingReached(60_000, 180_000));
+    }
+
+    @Test
+    public void shortDramaEndingStillWorksWithinItsAllowedLimit() {
+        History history = new History();
+        // 8 分钟短剧上设 3 分钟片尾：getOpEdLimit(8min) 允许 3 分钟，属合法设置，必须照常生效。
+        history.setEnding(180_000);
+
+        assertTrue(history.isEndingReached(300_000, 480_000));
+        // 还没到片尾区间时不触发。
+        assertFalse(history.isEndingReached(120_000, 480_000));
+    }
+
+    @Test
+    public void veryShortClipsStillReachTheirEnding() {
+        History history = new History();
+        // 40 秒竖屏短剧、片尾 10 秒：固定 1 分钟已播门槛会让片尾永不触发，需按时长缩放。
+        history.setEnding(10_000);
+
+        assertTrue(history.isEndingReached(30_000, 40_000));
+        // 刚开播仍不判完。
+        assertFalse(history.isEndingReached(0, 40_000));
+    }
+
+    @Test
+    public void anyEndingSettableOnThisEpisodeIsAlsoAcceptedWhenJudging() {
+        // 判定端与设置端必须自洽：凡 canSetEnding 允许设出的 ending，
+        // 在同一集上都不得被 isEndingReached 以「跨集错配」为由拒绝。
+        // canSetEnding 用 duration - position <= getOpEdLimit(duration)，
+        // 设出的 ending 恰为 duration - position，即上界就是 getOpEdLimit(duration)。
+        for (long duration : new long[]{40_000, 480_000, 900_000, 1_200_000, 1_800_000, 2_700_000}) {
+            long maxSettable = com.fongmi.android.tv.Constant.getOpEdLimit(duration);
+            History history = new History();
+            history.setEnding(maxSettable);
+            // 播到片尾起点时必须判定播完（position 已满足已播门槛的前提下）。
+            long position = duration - maxSettable;
+            if (position < Math.min(60_000, duration / 4)) continue;
+            assertTrue("duration=" + duration + " ending=" + maxSettable,
+                    history.isEndingReached(position, duration));
+        }
+    }
+
+    @Test
+    public void aPlausibleSharedEndingOnlyFiresAfterRealPlayback() {
+        History history = new History();
+        // 45 分钟正片设 10 分钟片尾，切到 35 分钟的集：10 分钟未超 getOpEdLimit(35min)=10min，
+        // 判定放行，但必须真播到 25 分钟才触发，不会在开播阶段把没看过的一集送走。
+        history.setEnding(600_000);
+
+        assertFalse(history.isEndingReached(0, 2_100_000));
+        assertFalse(history.isEndingReached(600_000, 2_100_000));
+        assertTrue(history.isEndingReached(1_500_000, 2_100_000));
+    }
+
+    @Test
+    public void endingNeverFiresAtTheVeryStartOfAnEpisode() {
+        History history = new History();
+        history.setEnding(120_000);
+
+        // 源站给了错误的短时长（2 分 10 秒）时，开播瞬间不得判完。
+        assertFalse(history.isEndingReached(0, 130_000));
+    }
+
+    @Test
+    public void endingRequiresAPositiveDurationAndConfiguredValue() {
+        History configured = new History();
+        configured.setEnding(120_000);
+        // 时长未就绪时不做任何判定。
+        assertFalse(configured.isEndingReached(2_580_000, 0));
+
+        History unset = new History();
+        // 用户没设过片尾，永不触发。
+        assertFalse(unset.isEndingReached(2_580_000, 2_700_000));
+    }
+
     private static History history(String key, String name, String remarks, String episodeUrl, long position, long duration) {
         History history = new History();
         history.setKey(key);

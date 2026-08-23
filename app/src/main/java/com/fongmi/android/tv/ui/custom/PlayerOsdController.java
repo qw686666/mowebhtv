@@ -8,7 +8,6 @@ import android.media.MediaFormat;
 import android.net.ConnectivityManager;
 import android.net.NetworkCapabilities;
 import android.net.Uri;
-import android.net.TrafficStats;
 import android.os.Build;
 import android.text.TextUtils;
 import android.util.DisplayMetrics;
@@ -31,6 +30,7 @@ import com.fongmi.android.tv.player.GpuLoadMonitor;
 import com.fongmi.android.tv.player.PlayerManager;
 import com.fongmi.android.tv.player.PlaybackPanelResourceMonitor;
 import com.fongmi.android.tv.player.PlaybackDiagnosticsSourcePolicy;
+import com.fongmi.android.tv.player.PlaybackSpeedMeter;
 import com.fongmi.android.tv.player.PlaybackRoute;
 import com.fongmi.android.tv.player.engine.PlayerEngine;
 import com.fongmi.android.tv.player.exo.PlaybackAnalyticsListener;
@@ -53,8 +53,6 @@ public class PlayerOsdController {
         String getTitle();
     }
 
-    private static final DecimalFormat SPEED_FORMAT = new DecimalFormat("#.0");
-    private static final int UID = App.get().getApplicationInfo().uid;
     private static volatile String cachedDeviceText;
     private static volatile String cachedSystemText;
     private static volatile String cachedWebViewText;
@@ -79,8 +77,7 @@ public class PlayerOsdController {
     private final DecimalFormat frameFormat;
     private final DecimalFormat refreshFormat;
     private final DecimalFormat bitrateFormat;
-    private long lastTotalRxBytes;
-    private long lastTimeStamp;
+    private final PlaybackSpeedMeter speedMeter = new PlaybackSpeedMeter();
     private long lastSpeedKBps;
     private String lastSpeedText;
     private boolean controlsVisible;
@@ -387,23 +384,14 @@ public class PlayerOsdController {
     }
 
     private void updateSpeed(PlayerManager player) {
-        if (player == null || PlaybackDiagnosticsSourcePolicy.isLocal(player.getUrl())) {
+        // No player means no playback to report on; app-wide traffic would mislead here.
+        if (player == null) {
             resetSpeed();
             return;
         }
-        long total = TrafficStats.getUidRxBytes(UID);
-        if (total == TrafficStats.UNSUPPORTED) {
-            lastSpeedKBps = 0;
-            lastSpeedText = "";
-            return;
-        }
-        long now = System.currentTimeMillis();
-        long rxKb = total / 1024;
-        long speed = (rxKb - lastTotalRxBytes) * 1000 / Math.max(now - lastTimeStamp, 1);
-        lastTimeStamp = now;
-        lastTotalRxBytes = rxKb;
-        lastSpeedKBps = Math.max(0, speed);
-        lastSpeedText = formatSpeed(lastSpeedKBps);
+        speedMeter.sample(player);
+        lastSpeedKBps = speedMeter.getBytesPerSecond() / 1024;
+        lastSpeedText = speedMeter.getText();
     }
 
     private DiagnosticsText getDiagnostics(PlayerManager player) {
@@ -910,14 +898,6 @@ public class PlayerOsdController {
         return bitrateFormat.format(kb / 1024f) + "MB";
     }
 
-    private String formatSpeed(long kbps) {
-        return kbps < 1000 ? kbps + " KB/s" : SPEED_FORMAT.format(kbps / 1024f) + " MB/s";
-    }
-
-    private String formatByteSpeed(long bytesPerSecond) {
-        return formatSpeed(Math.max(0, bytesPerSecond / 1024));
-    }
-
     private String formatDuration(long ms) {
         if (ms <= 0) return "";
         if (ms >= 60_000) return Util.timeMs(ms);
@@ -1187,9 +1167,7 @@ public class PlayerOsdController {
     }
 
     private void resetSpeed() {
-        long total = TrafficStats.getUidRxBytes(UID);
-        lastTotalRxBytes = total == TrafficStats.UNSUPPORTED ? 0 : total / 1024;
-        lastTimeStamp = System.currentTimeMillis();
+        speedMeter.reset();
         lastSpeedKBps = 0;
         lastSpeedText = "";
     }

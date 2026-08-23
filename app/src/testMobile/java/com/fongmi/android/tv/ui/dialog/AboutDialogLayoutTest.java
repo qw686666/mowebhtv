@@ -83,7 +83,8 @@ public class AboutDialogLayoutTest {
         String setting = read(findMainJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "setting", "Setting.java")));
         String proxy = read(findMainJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "utils", "GithubProxy.java")));
 
-        assertTrue(layout.contains("<com.google.android.material.switchmaterial.SwitchMaterial"));
+        assertTrue(layout.contains("<androidx.appcompat.widget.SwitchCompat"));
+        assertFalse(layout.contains("<com.google.android.material.switchmaterial.SwitchMaterial"));
         assertTrue(layout.contains("android:id=\"@+id/enabled\""));
         assertTrue(dialog.contains("binding.enabled.setChecked(Setting.isGithubProxyEnabled());"));
         assertTrue(dialog.contains("Setting.putGithubProxyEnabled(isChecked)"));
@@ -126,6 +127,26 @@ public class AboutDialogLayoutTest {
                 remove.contains("android:focusable=\"true\"")
                         || remove.contains("android:focusableInTouchMode=\"true\""));
     }
+
+    @Test
+    public void githubProxyDialogUsesRoomierTvDimensions() {
+        assertEquals(1274, AboutDialog.resolveGithubProxyWidth(1920, 1080));
+        assertEquals(850, AboutDialog.resolveGithubProxyWidth(1280, 720));
+        assertEquals(994, AboutDialog.resolveGithubProxyWidth(1080, 1920));
+        assertEquals(886, AboutDialog.resolveGithubProxyHeight(1080));
+        assertEquals(259, AboutDialog.resolveGithubProxyListHeight(1080));
+    }
+
+    @Test
+    public void githubProxyDialogAppliesDedicatedTvWindowSizing() throws Exception {
+        String source = read(findMainJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "ui", "dialog", "AboutDialog.java")));
+
+        assertTrue(source.contains("configureGithubProxyWindow(activity, githubDialog, binding);"));
+        assertTrue(source.contains("resolveGithubProxyWidth(screenWidth, screenHeight)"));
+        assertTrue(source.contains("resolveGithubProxyHeight(screenHeight)"));
+        assertTrue(source.contains("resolveGithubProxyListHeight(screenHeight)"));
+    }
+
 
     private static String read(Path path) throws Exception {
         return new String(Files.readAllBytes(path), StandardCharsets.UTF_8);

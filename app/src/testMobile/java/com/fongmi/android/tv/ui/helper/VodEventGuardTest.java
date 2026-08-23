@@ -79,6 +79,12 @@ public class VodEventGuardTest {
     }
 
     @Test
+    public void matchesPushUriWhenCurrentIdContainsDisplayTitle() {
+        String url = "https://www.youtube.com/watch?v=V-O-uBaHk3c";
+        assertTrue(VodEventGuard.matches(vod("", "/" + url), "push_agent", url + "|Final Trailer"));
+    }
+
+    @Test
     public void preservesNetworkUriPaths() {
         String id = "https://example.com/video/1";
         assertEquals(id, VodEventGuard.stripPageSuffix(id));

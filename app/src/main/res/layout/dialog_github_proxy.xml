@@ -26,7 +26,7 @@
         android:overScrollMode="never"
         app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager" />
 
-    <com.google.android.material.switchmaterial.SwitchMaterial
+    <androidx.appcompat.widget.SwitchCompat
         android:id="@+id/enabled"
         android:layout_width="match_parent"
         android:layout_height="48dp"

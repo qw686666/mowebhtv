@@ -40,6 +40,23 @@ public class HistoryResumePayloadTest {
     }
 
     @Test
+    public void seasonalPayloadFallsBackToCurrentRouteWhenSnapshotIsMissing() {
+        History current = history("route", 3, 8, 300, 900, "duplicate#0");
+
+        assertSame(current, HistoryResumePayload.restore(
+                current, null, HistoryResumePayload.encode(current)));
+    }
+
+    @Test
+    public void seasonalPayloadDoesNotFallbackToAnotherSeasonWhenSnapshotIsMissing() {
+        History current = history("route", 3, 8, 300, 900, "duplicate#0");
+        History clicked = history("route", 1, 5, 100, 600, "duplicate#1");
+
+        assertNull(HistoryResumePayload.restore(
+                current, null, HistoryResumePayload.encode(clicked)));
+    }
+
+    @Test
     public void legacyHistoryKeyStillRestoresCurrentRow() {
         History current = history("route", 3, 8, 300, 900, "duplicate#0");
 

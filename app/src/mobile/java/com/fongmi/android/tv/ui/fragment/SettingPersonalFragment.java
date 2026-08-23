@@ -11,14 +11,12 @@ import androidx.viewbinding.ViewBinding;
 import com.fongmi.android.tv.R;
 import com.fongmi.android.tv.databinding.FragmentSettingPersonalBinding;
 import com.fongmi.android.tv.event.RefreshEvent;
-import com.fongmi.android.tv.service.RecommendationFeedbackStore;
 import com.fongmi.android.tv.setting.AutoBackupPolicy;
 import com.fongmi.android.tv.setting.GroupRuleConfig;
 import com.fongmi.android.tv.setting.PlayerSetting;
 import com.fongmi.android.tv.setting.Setting;
 import com.fongmi.android.tv.ui.base.BaseFragment;
 import com.fongmi.android.tv.ui.dialog.GroupRuleDialog;
-import com.fongmi.android.tv.ui.dialog.RecommendationFeedbackDialog;
 import com.fongmi.android.tv.ui.dialog.SpeedSettingDialog;
 import com.fongmi.android.tv.ui.dialog.SliderNumberDialog;
 import com.fongmi.android.tv.utils.Notify;
@@ -34,7 +32,6 @@ public class SettingPersonalFragment extends BaseFragment {
     private String[] searchUi;
     private String[] searchColumn;
     private String[] siteColumn;
-    private String[] tmdbMatchMode;
     private String[] globalHistoryMode;
     private String[] searchResultSort;
 
@@ -63,13 +60,8 @@ public class SettingPersonalFragment extends BaseFragment {
         mBinding.playBackToDetail.setOnClickListener(this::setPlayBackToDetail);
         mBinding.episodeHistory.setOnClickListener(this::setEpisodeHistory);
         mBinding.globalHistory.setOnClickListener(this::setGlobalHistory);
-        mBinding.historyAggregation.setOnClickListener(this::setHistoryAggregation);
         mBinding.playSpeed.setOnClickListener(this::setPlaySpeed);
-        mBinding.tmdbMatchMode.setOnClickListener(this::setTmdbMatchMode);
-        mBinding.personalRecommendation.setOnClickListener(this::setPersonalRecommendation);
-        mBinding.recommendationFeedback.setOnClickListener(this::manageRecommendationFeedback);
         mBinding.groupRule.setOnClickListener(this::setGroupRule);
-        mBinding.tmdbEpisodeFileSize.setOnClickListener(this::setTmdbEpisodeFileSize);
         mBinding.searchUi.setOnClickListener(this::setSearchUi);
         mBinding.searchColumn.setOnClickListener(this::setSearchColumn);
         mBinding.siteColumn.setOnClickListener(this::setSiteColumn);
@@ -83,17 +75,8 @@ public class SettingPersonalFragment extends BaseFragment {
         mBinding.playBackToDetailText.setText(getSwitch(Setting.isPlayBackToDetail()));
         mBinding.episodeHistoryText.setText(getSwitch(Setting.isEpisodeHistory()));
         mBinding.globalHistoryText.setText((globalHistoryMode = getResources().getStringArray(R.array.select_global_history_mode))[Setting.getGlobalHistoryMode()]);
-        mBinding.historyAggregation.setVisibility(Setting.isTmdbReady() ? View.VISIBLE : View.GONE);
-        mBinding.historyAggregationText.setText(getSwitch(Setting.isHistoryAggregationByTmdb()));
         mBinding.playSpeedText.setText(getSpeedText(PlayerSetting.getDefaultSpeed()));
-        mBinding.tmdbMatchModeText.setText((tmdbMatchMode = getResources().getStringArray(R.array.select_tmdb_match_mode))[Setting.getTmdbMatchMode()]);
-        mBinding.personalRecommendationText.setText(getSwitch(Setting.isPersonalRecommendation()));
-        int feedbackCount = RecommendationFeedbackStore.size();
-        mBinding.recommendationFeedbackText.setText(feedbackCount == 0
-                ? getString(R.string.setting_recommendation_feedback_empty)
-                : getString(R.string.setting_recommendation_feedback_count, feedbackCount));
         mBinding.groupRuleText.setText(getString(R.string.setting_group_rule_summary, GroupRuleConfig.enabledCount(), GroupRuleConfig.totalCount()));
-        mBinding.tmdbEpisodeFileSizeText.setText(getSwitch(Setting.isTmdbEpisodeFileSize()));
         mBinding.searchUiText.setText((searchUi = getResources().getStringArray(R.array.select_search_ui))[Setting.getSearchUi()]);
         mBinding.searchColumnText.setText(getSearchColumnText());
         mBinding.siteColumnText.setText((siteColumn = getResources().getStringArray(R.array.select_site_column))[Setting.getSiteColumn() - 1]);
@@ -156,12 +139,6 @@ public class SettingPersonalFragment extends BaseFragment {
         setText();
     }
 
-    private void setHistoryAggregation(View view) {
-        Setting.putHistoryAggregationByTmdb(!Setting.isHistoryAggregationByTmdb());
-        RefreshEvent.history();
-        setText();
-    }
-
     private void setPlaySpeed(View view) {
         SpeedSettingDialog.show(requireActivity(), R.string.setting_play_speed, PlayerSetting.getDefaultSpeed(), 0.5f, 5f, 0.25f, value -> {
             PlayerSetting.putDefaultSpeed(value);
@@ -169,39 +146,8 @@ public class SettingPersonalFragment extends BaseFragment {
         });
     }
 
-    private void setTmdbMatchMode(View view) {
-        Setting.putTmdbMatchMode((Setting.getTmdbMatchMode() + 1) % tmdbMatchMode.length);
-        setText();
-    }
-
-    private void setPersonalRecommendation(View view) {
-        if (Setting.isPersonalRecommendation()) {
-            Setting.putPersonalRecommendation(false);
-            setText();
-            return;
-        }
-        new MaterialAlertDialogBuilder(requireActivity())
-                .setTitle(R.string.personal_recommendation_confirm_title)
-                .setMessage(R.string.personal_recommendation_confirm_message)
-                .setNegativeButton(R.string.dialog_negative, null)
-                .setPositiveButton(R.string.dialog_positive, (dialog, which) -> {
-                    Setting.putPersonalRecommendation(true);
-                    setText();
-                })
-                .show();
-    }
-
-    private void manageRecommendationFeedback(View view) {
-        RecommendationFeedbackDialog.create(requireActivity()).onChanged(this::setText).show();
-    }
-
     private void setGroupRule(View view) {
         GroupRuleDialog.create(requireActivity()).onChanged(this::setText).show();
-    }
-
-    private void setTmdbEpisodeFileSize(View view) {
-        Setting.putTmdbEpisodeFileSize(!Setting.isTmdbEpisodeFileSize());
-        setText();
     }
 
     private void setSearchUi(View view) {

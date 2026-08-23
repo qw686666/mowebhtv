@@ -83,8 +83,8 @@ public class AdRuleManageDialogLayoutTest {
         String mobile = read(projectRoot().resolve("app/src/mobile/java/com/fongmi/android/tv/ui/fragment/SettingEnhanceFragment.java"));
         String tvLayout = read(projectRoot().resolve("app/src/leanback/res/layout/activity_setting_enhance.xml"));
 
-        assertTrue(tv.contains("UserAdRuleStore.load().size() + com.fongmi.android.tv.api.config.RuleConfig.get().getDefaultRules().size()"));
-        assertTrue(mobile.contains("UserAdRuleStore.load().size() + com.fongmi.android.tv.api.config.RuleConfig.get().getDefaultRules().size()"));
+        assertTrue(tv.contains("UserAdRuleStore.load().size() + RuleConfig.get().getDefaultRules().size()"));
+        assertTrue(mobile.contains("UserAdRuleStore.load().size() + RuleConfig.get().getDefaultRules().size()"));
         assertFalse("rule manager must remain visible even when AI detection is unavailable",
                 tvLayout.contains("android:id=\"@+id/adRuleManage\"\r\n"
                         + "            android:layout_width=\"match_parent\"\r\n"

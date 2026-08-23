@@ -707,7 +707,7 @@ public class LiveActivity extends PlaybackActivity implements GroupAdapter.OnCli
     }
 
     private void setTraffic() {
-        Traffic.setSpeed(mBinding.progress.traffic);
+        Traffic.setSpeed(mBinding.progress.traffic, service() == null ? null : player());
         App.post(mR2, 1000);
     }
 

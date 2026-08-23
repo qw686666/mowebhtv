@@ -1866,6 +1866,73 @@ public class TmdbDetailActivityLayoutTest {
     }
 
     @Test
+    public void tmdbArtworkRowsSeparateBackdropsAndPostersWhileSlidesRemainResponsive() throws Exception {
+        Path activityPath = findMainJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "ui", "activity", "TmdbDetailActivity.java"));
+        Path headerPath = findMainJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "ui", "custom", "TmdbHeaderView.java"));
+        Path adapterPath = findMainJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "ui", "adapter", "TmdbPhotoAdapter.java"));
+        Path layoutPath = findMainResPath().resolve(Path.of("layout", "activity_tmdb_detail.xml"));
+        String activity = new String(Files.readAllBytes(activityPath), StandardCharsets.UTF_8);
+        String header = new String(Files.readAllBytes(headerPath), StandardCharsets.UTF_8);
+        String adapter = new String(Files.readAllBytes(adapterPath), StandardCharsets.UTF_8);
+        String layout = new String(Files.readAllBytes(layoutPath), StandardCharsets.UTF_8);
+
+        assertTrue("detail artwork panel should render a dedicated poster row directly below backdrops",
+                layout.contains("android:id=\"@+id/posterTitle\"")
+                        && layout.contains("android:id=\"@+id/posterList\"")
+                        && layout.indexOf("@+id/posterTitle") > layout.indexOf("@+id/episodePhotoList"));
+        assertTrue("detail activity should keep card rows separate from responsive backdrop slides",
+                activity.contains("private final List<String> detailTmdbPosters")
+                        && activity.contains("private final List<String> detailBackdropSlides")
+                        && activity.contains("tmdbService.backdrops(")
+                        && activity.contains("tmdbService.posters(")
+                        && activity.contains("tmdbService.photos(")
+                        && activity.contains("posterAdapter = new TmdbPhotoAdapter(")
+                        && activity.contains("detailBackdropSlides) addBackdropSlideItem"));
+        assertTrue("shared header should bind posters separately and use the responsive list only for its slideshow",
+                header.contains("adapter.getPosters()")
+                        && header.contains("adapter.getBackgroundPhotos()")
+                        && header.contains("posterAdapter = new com.fongmi.android.tv.ui.adapter.TmdbPhotoAdapter(true)"));
+        assertTrue("poster row should use portrait dimensions without changing the shared backdrop card layout",
+                adapter.contains("params.width = ResUtil.dp2px(148);")
+                        && adapter.contains("params.height = ResUtil.dp2px(222);")
+                        && adapter.contains("R.layout.adapter_tmdb_photo"));
+    }
+
+    @Test
+    public void mobileTmdbPhotoViewersKeepCurrentOrientationUntilUserRotates() throws Exception {
+        String detail = readJava("com", "fongmi", "android", "tv", "ui", "activity", "TmdbDetailActivity.java");
+        String person = readJava("com", "fongmi", "android", "tv", "ui", "activity", "TmdbPersonActivity.java");
+
+        assertPhotoViewerKeepsCurrentOrientation(detail, "detail artwork viewer");
+        assertPhotoViewerKeepsCurrentOrientation(person, "person photo viewer");
+    }
+
+    private static void assertPhotoViewerKeepsCurrentOrientation(String source, String label) {
+        String load = javaBlockAt(source, "private void loadPhotoImage(");
+        assertTrue(label + " must keep FIT_CENTER rendering", load.contains(".fitCenter()"));
+        assertFalse(label + " must not rotate the activity after an image loads", load.contains("applyPhotoOrientation("));
+        assertFalse(label + " must not call setRequestedOrientation while loading an image", load.contains("setRequestedOrientation("));
+        assertFalse(label + " must not inspect image dimensions to choose orientation", load.contains("getIntrinsicWidth()") || load.contains("getIntrinsicHeight()"));
+        assertFalse(label + " must not keep an automatic orientation helper", source.contains("private void applyPhotoOrientation("));
+
+        String actionMarker = source.contains("private View createPhotoMobileActions(")
+                ? "private View createPhotoMobileActions("
+                : "private View createPhotoActions(";
+        String actions = javaBlockAt(source, actionMarker);
+        String toggle = javaBlockAt(source, "private void togglePhotoOrientation(");
+        assertTrue(label + " must keep the explicit rotate control", actions.contains("R.string.detail_image_rotate")
+                && (actions.contains("togglePhotoOrientation(photoOrientation)") || actions.contains("togglePhotoOrientation()")));
+        assertTrue(label + " must rotate only from the explicit control", toggle.contains("setRequestedOrientation(target);")
+                && countOccurrences(source, "togglePhotoOrientation(") == 2);
+        assertFalse(label + " must rotate from the actual orientation, not a stale request", toggle.contains("getRequestedOrientation()"));
+        assertTrue(label + " must toggle the current visible orientation",
+                toggle.contains("actual == Configuration.ORIENTATION_LANDSCAPE")
+                        && toggle.contains("? ActivityInfo.SCREEN_ORIENTATION_PORTRAIT")
+                        && toggle.contains(": ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE"));
+        assertTrue(label + " must restore the entry orientation when closed", source.contains("setRequestedOrientation(originalOrientation);"));
+    }
+
+    @Test
     public void mobileLegacyDetailPhotoCardsOpenOnFirstTapAcrossDetailFlows() throws Exception {
         Path adapterPath = findMainJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "ui", "adapter", "TmdbPhotoAdapter.java"));
         Path activityPath = findMainJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "ui", "activity", "TmdbDetailActivity.java"));
@@ -3161,6 +3228,16 @@ public class TmdbDetailActivityLayoutTest {
         int tagEnd = layout.indexOf("/>", idIndex);
         if (tagEnd < 0) tagEnd = layout.indexOf(">", idIndex);
         return tagEnd > idIndex && layout.substring(idIndex, tagEnd).contains(attribute);
+    }
+
+    private static int countOccurrences(String source, String needle) {
+        int count = 0;
+        int offset = 0;
+        while ((offset = source.indexOf(needle, offset)) >= 0) {
+            count++;
+            offset += needle.length();
+        }
+        return count;
     }
 
     private static String javaBlockAt(String source, String marker) {

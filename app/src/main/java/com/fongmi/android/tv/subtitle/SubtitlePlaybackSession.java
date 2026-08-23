@@ -75,6 +75,11 @@ public final class SubtitlePlaybackSession {
         PlayerManager getSubtitlePlayer();
 
         boolean isSubtitleHostActive();
+
+        default Result getSubtitlePlaybackResult() {
+            PlayerManager player = getSubtitlePlayer();
+            return player == null || player.isReleased() ? null : player.getCurrentResult();
+        }
     }
 
     private final Controller controller;
@@ -108,10 +113,6 @@ public final class SubtitlePlaybackSession {
         if (host == null) return;
         String playbackKey = host.getSubtitlePlaybackKey();
         if (SubtitleStrings.isEmpty(playbackKey)) return;
-        if (hasProvidedSubtitle(result)) {
-            stop(host);
-            return;
-        }
 
         SubtitleTrigger trigger = resolveTrigger(host);
         SubtitleRequest request = requestFactory.create(playbackKey, host.getSubtitleSite(), host.getSubtitleVod(), host.getSubtitleEpisode(), result, host.getSubtitleTmdbItem(), host.getSubtitleTmdbEpisode(), trigger);
@@ -123,6 +124,12 @@ public final class SubtitlePlaybackSession {
         currentRequest = request;
         currentEpisodeMarker = episodeMarker(host.getSubtitleEpisode());
         active = true;
+
+        // 源站已带字幕时只跳过自动匹配，会话保持可用以便手动搜索
+        if (hasProvidedSubtitle(result)) {
+            controller.onStop(playbackKey);
+            return;
+        }
 
         if (trigger == SubtitleTrigger.AUTO_PLAY) controller.onPlaybackStarted(request);
         else if (trigger == SubtitleTrigger.EPISODE_SWITCH) controller.onEpisodeChanged(request);
@@ -142,11 +149,11 @@ public final class SubtitlePlaybackSession {
 
     public void manualSearch(Host host, String keyword, ManualCallback callback) {
         if (callback == null) return;
-        if (!canManualSearch(host)) {
+        SubtitleRequest request = manualRequest(host);
+        if (request == null) {
             callback.onSubtitleResult(currentRequest, SubtitleMatchResult.error("inactive"), false);
             return;
         }
-        SubtitleRequest request = currentRequest;
         controller.manualSearch(request, keyword, (current, result) -> {
             if (request != currentRequest || !isActive(host)) return;
             callback.onSubtitleResult(current, result, false);
@@ -154,17 +161,16 @@ public final class SubtitlePlaybackSession {
     }
 
     public String getManualSearchKeyword(Host host) {
-        if (!canManualSearch(host)) return "";
-        return manualKeyword(currentRequest);
+        return manualKeyword(buildManualRequest(host));
     }
 
     public void resolveManual(Host host, SubtitleCandidate candidate, ManualCallback callback) {
         if (callback == null) return;
-        if (!canManualSearch(host) || candidate == null) {
+        SubtitleRequest request = candidate == null ? null : manualRequest(host);
+        if (request == null) {
             callback.onSubtitleResult(currentRequest, SubtitleMatchResult.error("inactive"), false);
             return;
         }
-        SubtitleRequest request = currentRequest;
         controller.resolve(request, candidate, (current, result) -> {
             if (request != currentRequest || !isActive(host)) return;
             boolean applied = applyMatchedSubtitle(host, result);
@@ -212,8 +218,23 @@ public final class SubtitlePlaybackSession {
         return subs != null && !subs.isEmpty();
     }
 
-    private boolean canManualSearch(Host host) {
-        return currentRequest != null && isActive(host);
+    // 播放仍在进行但会话没有可用请求时（源站自带字幕、错误后恢复、播放器先于会话就绪），按当前播放地址补建请求，避免手动搜索被误判为未播放
+    private SubtitleRequest buildManualRequest(Host host) {
+        if (host == null || !host.isSubtitleHostActive()) return null;
+        if (active && currentRequest != null) return currentRequest;
+        String playbackKey = host.getSubtitlePlaybackKey();
+        if (SubtitleStrings.isEmpty(playbackKey)) return null;
+        return requestFactory.create(playbackKey, host.getSubtitleSite(), host.getSubtitleVod(), host.getSubtitleEpisode(), host.getSubtitlePlaybackResult(), host.getSubtitleTmdbItem(), host.getSubtitleTmdbEpisode(), SubtitleTrigger.MANUAL_SEARCH);
+    }
+
+    // 补建的请求需要登记为当前请求，回调里的 request == currentRequest 时效校验才能通过
+    private SubtitleRequest manualRequest(Host host) {
+        SubtitleRequest request = buildManualRequest(host);
+        if (request == null || request == currentRequest) return request;
+        currentRequest = request;
+        currentEpisodeMarker = episodeMarker(host.getSubtitleEpisode());
+        active = true;
+        return request;
     }
 
     private boolean isActive(Host host) {

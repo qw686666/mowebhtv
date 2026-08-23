@@ -4622,7 +4622,7 @@ private final Task.Scope mPersonalRecommendationTasks = new Task.Scope(Task.reco
     }
 
     private void setTraffic() {
-        Traffic.setSpeed(mBinding.progress.traffic);
+        Traffic.setSpeed(mBinding.progress.traffic, service() == null ? null : player());
         App.post(mR2, 1000);
     }
 
@@ -4949,7 +4949,7 @@ private final Task.Scope mPersonalRecommendationTasks = new Task.Scope(Task.reco
             if (!tmdbHistoryResumePending) {
                 // 播放位置缓存继续使用源站集名，避免刮削展示名变化后无法恢复。
                 String cacheName = getCurrentHistoryEpisodeCacheName();
-                if (!TextUtils.isEmpty(cacheName)) {
+                if (!TextUtils.isEmpty(cacheName) && !skipEpisodePositionCache()) {
                     EpisodePositionCache.get().put(
                         getKey(),
                         getId(),
@@ -4990,7 +4990,7 @@ private final Task.Scope mPersonalRecommendationTasks = new Task.Scope(Task.reco
             if (!tmdbHistoryResumePending) {
                 // 播放位置缓存继续使用源站集名，History 仅负责展示刮削后的标题。
                 String cacheName = getCurrentHistoryEpisodeCacheName();
-                if (!TextUtils.isEmpty(cacheName)) {
+                if (!TextUtils.isEmpty(cacheName) && !skipEpisodePositionCache()) {
                     EpisodePositionCache.get().put(
                         getKey(),
                         getId(),
@@ -5007,7 +5007,7 @@ private final Task.Scope mPersonalRecommendationTasks = new Task.Scope(Task.reco
 
         if (!sameEpisode && !tmdbHistoryResumePending) {
             // 从缓存中恢复新集的播放位置
-            EpisodePositionCache.EpisodePosition cached = EpisodePositionCache.get().get(
+            EpisodePositionCache.EpisodePosition cached = skipEpisodePositionCache() ? null : EpisodePositionCache.get().get(
                 getKey(),
                 getId(),
                 getFlag().getFlag(),
@@ -5251,6 +5251,15 @@ private final Task.Scope mPersonalRecommendationTasks = new Task.Scope(Task.reco
             }
         }
         return "";
+    }
+
+    /**
+     * 季号不可靠且当前线路混排多季时，放弃集数播放位置缓存。
+     * 这种线路里两季都有"第01集"，裸集名会让没看过的一集读到另一季已看完的进度、直接跳到结尾。
+     * 从头开始播比跳到错误位置好。写入侧一并跳过，避免继续污染这些有歧义的槽位。
+     */
+    private boolean skipEpisodePositionCache() {
+        return currentSourceSeasonNumber() < 0 && mSourceEpisodeSeasonCache.hasMixedSeasons(getFlag());
     }
 
     private String episodePositionCacheName(Episode episode, int preferredSeason) {
@@ -6615,7 +6624,7 @@ private final Task.Scope mPersonalRecommendationTasks = new Task.Scope(Task.reco
         PlaybackEventCollector.get().onProgress(mHistory, player());
         if (mHistory.canSave() && mHistory.canSync()) syncHistory();
         if (applyAutoIntroSkip()) return;
-        if (mHistory.getEnding() > 0 && duration > 0 && mHistory.getEnding() + position >= duration) {
+        if (mHistory.isEndingReached(position, duration)) {
             checkEnded(false);
         }
     }

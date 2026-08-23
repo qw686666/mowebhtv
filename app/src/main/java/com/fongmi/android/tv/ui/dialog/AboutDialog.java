@@ -25,6 +25,7 @@ import com.fongmi.android.tv.utils.AppVersion;
 import com.fongmi.android.tv.utils.GithubProxy;
 import com.fongmi.android.tv.utils.Notify;
 import com.fongmi.android.tv.utils.ResUtil;
+import com.fongmi.android.tv.utils.Util;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 public final class AboutDialog {
@@ -130,7 +131,42 @@ public final class AboutDialog {
         });
         githubDialog.show();
         LightDialog.apply(githubDialog);
+        configureGithubProxyWindow(activity, githubDialog, binding);
     }
+
+    private static void configureGithubProxyWindow(FragmentActivity activity, AlertDialog dialog, DialogGithubProxyBinding binding) {
+        if (!Util.isLeanback()) return;
+        Window window = dialog.getWindow();
+        if (window == null) return;
+        int screenWidth = ResUtil.getScreenWidth(activity);
+        int screenHeight = ResUtil.getScreenHeight(activity);
+        int contentHeight = activity.findViewById(android.R.id.content).getHeight();
+        if (contentHeight > 0) screenHeight = Math.min(screenHeight, contentHeight);
+        int width = resolveGithubProxyWidth(screenWidth, screenHeight);
+        int height = resolveGithubProxyHeight(screenHeight);
+        ViewGroup.LayoutParams listParams = binding.list.getLayoutParams();
+        listParams.height = resolveGithubProxyListHeight(screenHeight);
+        binding.list.setLayoutParams(listParams);
+        window.setLayout(width, height);
+    }
+
+    static int resolveGithubProxyWidth(int screenWidth, int screenHeight) {
+        boolean landscape = screenWidth >= screenHeight;
+        float widthFactor = landscape ? 0.68f : 0.92f;
+        float heightFactor = landscape ? 1.18f : 0.95f;
+        return Math.max(1, Math.min(
+                Math.round(screenWidth * widthFactor),
+                Math.round(screenHeight * heightFactor)));
+    }
+
+    static int resolveGithubProxyHeight(int screenHeight) {
+        return Math.max(1, Math.round(screenHeight * 0.82f));
+    }
+
+    static int resolveGithubProxyListHeight(int screenHeight) {
+        return Math.max(1, Math.round(screenHeight * 0.24f));
+    }
+
 
     private static void refreshGithubProxy(DialogGithubProxyBinding binding) {
         ((GithubProxyAdapter) binding.list.getAdapter()).setItems(GithubProxy.getSources(), GithubProxy.getActive());

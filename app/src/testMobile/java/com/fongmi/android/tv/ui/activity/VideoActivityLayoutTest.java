@@ -3002,6 +3002,42 @@ public class VideoActivityLayoutTest {
         return Path.of("app", "src", "mobile", "res");
     }
 
+    @Test
+    public void leanbackTmdbPhotoViewerStartsAtClickedArtwork() throws Exception {
+        Path sourcePath = findLeanbackJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "ui", "activity", "VideoActivity.java"));
+        String source = new String(Files.readAllBytes(sourcePath), StandardCharsets.UTF_8);
+        String photoClick = methodBody(source, "private void onTmdbPhotoClick(String url, int position)", "private void onTmdbPosterClick");
+        String posterClick = methodBody(source, "private void onTmdbPosterClick(String url, int position)", "private void onTmdbRecommendationClick");
+
+        assertTrue("leanback photo viewer must resolve the clicked backdrop URL instead of always opening index zero",
+                photoClick.contains("Math.max(0, photos.indexOf(url))"));
+        assertTrue("leanback photo viewer must resolve the clicked poster URL instead of always opening index zero",
+                posterClick.contains("Math.max(0, posters.indexOf(url))"));
+    }
+
+    @Test
+    public void leanbackTmdbArtworkSeparatesPostersAndUsesResponsiveBackdropSlides() throws Exception {
+        Path sourcePath = findLeanbackJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "ui", "activity", "VideoActivity.java"));
+        Path presenterPath = findLeanbackJavaPath().resolve(Path.of("com", "fongmi", "android", "tv", "ui", "presenter", "TmdbPhotoPresenter.java"));
+        Path layoutPath = findLeanbackResPath().resolve(Path.of("layout", "activity_video.xml"));
+        String source = new String(Files.readAllBytes(sourcePath), StandardCharsets.UTF_8);
+        String presenter = new String(Files.readAllBytes(presenterPath), StandardCharsets.UTF_8);
+        String layout = new String(Files.readAllBytes(layoutPath), StandardCharsets.UTF_8);
+
+        assertTrue("leanback detail must render the poster row below the backdrop row",
+                layout.contains("android:id=\"@+id/tmdbPostersLabel\"")
+                        && layout.contains("android:id=\"@+id/tmdbPosters\"")
+                        && layout.indexOf("@+id/tmdbPostersLabel") > layout.indexOf("@+id/tmdbPhotos"));
+        assertTrue("leanback detail must bind backdrops and posters separately while slides stay responsive",
+                source.contains("mTmdbUIAdapter.getPhotos()")
+                        && source.contains("mTmdbUIAdapter.getPosters()")
+                        && source.contains("setupBackdropSlideshow(mTmdbUIAdapter.getBackgroundPhotos())"));
+        assertTrue("leanback poster cards must keep portrait dimensions",
+                presenter.contains("params.width = ResUtil.dp2px(148);")
+                        && presenter.contains("params.height = ResUtil.dp2px(222);"));
+    }
+
+
     private static Path findLeanbackResPath() {
         Path moduleRelative = Path.of("src", "leanback", "res");
         if (Files.exists(moduleRelative)) return moduleRelative;

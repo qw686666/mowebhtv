@@ -323,7 +323,7 @@ public class CastActivity extends PlaybackActivity implements CustomKeyDownVod.L
     }
 
     private void setTraffic() {
-        Traffic.setSpeed(mBinding.progress.traffic);
+        Traffic.setSpeed(mBinding.progress.traffic, service() == null ? null : player());
         App.post(mR2, 1000);
     }
 

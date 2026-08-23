@@ -2,14 +2,18 @@ package com.fongmi.android.tv.ui.helper;
 
 import android.app.Activity;
 
+import androidx.fragment.app.FragmentActivity;
+
 import com.fongmi.android.tv.R;
 import com.fongmi.android.tv.api.SiteApi;
 import com.fongmi.android.tv.bean.TmdbVideo;
-import com.fongmi.android.tv.ui.activity.VideoActivity;
+import com.fongmi.android.tv.ui.dialog.TmdbVideoPlayerDialog;
 import com.fongmi.android.tv.utils.PushParser;
 import com.fongmi.android.tv.utils.ResUtil;
 
-/** Converts a validated TMDB video into the existing in-app push playback request. */
+import java.io.Serializable;
+
+/** Converts a validated TMDB video into an isolated windowed playback request. */
 public final class TmdbVideoPlayback {
 
     private TmdbVideoPlayback() {
@@ -36,24 +40,15 @@ public final class TmdbVideoPlayback {
     }
 
     public static boolean play(Activity activity, TmdbVideo video) {
-        if (activity == null) return false;
+        if (!(activity instanceof FragmentActivity)) return false;
         Launch launch = create(video, ResUtil.getString(R.string.push));
         if (launch == null) return false;
-        VideoActivity.startDirect(
-                activity,
-                launch.getKey(),
-                launch.getId(),
-                launch.getName(),
-                launch.getPic(),
-                launch.getMark(),
-                launch.getPlayFlag(),
-                launch.getPlayEpisodeName(),
-                launch.getPlayEpisodeUrl(),
-                launch.isResumeFromHistory());
-        return true;
+        return TmdbVideoPlayerDialog.show((FragmentActivity) activity, launch);
     }
 
-    public static final class Launch {
+    public static final class Launch implements Serializable {
+
+        private static final long serialVersionUID = 1L;
 
         private final String key;
         private final String id;

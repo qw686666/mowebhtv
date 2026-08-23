@@ -27,13 +27,91 @@ public class SettingPlaybackDefaultsTest {
     }
 
     @Test
-    public void subtitleAiSettingsLiveUnderSubtitleSettings() throws Exception {
+    public void tmdbSettingsLiveUnderDedicatedSettings() throws Exception {
         Path root = moduleRoot();
+        String mobileHome = read(root.resolve(Path.of("src", "mobile", "res", "layout", "fragment_setting.xml")));
+        String leanbackHome = read(root.resolve(Path.of("src", "leanback", "res", "layout", "activity_setting.xml")));
+        String mobileLayout = read(root.resolve(Path.of("src", "mobile", "res", "layout", "fragment_setting_tmdb.xml")));
+        String leanbackLayout = read(root.resolve(Path.of("src", "leanback", "res", "layout", "activity_setting_tmdb.xml")));
+        String mobilePersonal = read(root.resolve(Path.of("src", "mobile", "res", "layout", "fragment_setting_personal.xml")));
+        String leanbackPersonal = read(root.resolve(Path.of("src", "leanback", "res", "layout", "activity_setting_personal.xml")));
+        String mobileEnhance = read(root.resolve(Path.of("src", "mobile", "res", "layout", "fragment_setting_enhance.xml")));
+        String leanbackEnhance = read(root.resolve(Path.of("src", "leanback", "res", "layout", "activity_setting_enhance.xml")));
 
-        assertTrue(read(root.resolve(Path.of("src", "mobile", "res", "layout", "fragment_setting_subtitle.xml"))).contains("@+id/subtitleAiSettings"));
-        assertTrue(read(root.resolve(Path.of("src", "leanback", "res", "layout", "activity_setting_subtitle.xml"))).contains("@+id/subtitleAiSettings"));
-        assertTrue(read(root.resolve(Path.of("src", "mobile", "java", "com", "fongmi", "android", "tv", "ui", "fragment", "SettingSubtitleFragment.java"))).contains("Setting.isAiConfigReady()"));
-        assertTrue(read(root.resolve(Path.of("src", "leanback", "java", "com", "fongmi", "android", "tv", "ui", "activity", "SettingSubtitleActivity.java"))).contains("Setting.isAiConfigReady()"));
+        assertTrue(mobileHome.contains("@+id/tmdb"));
+        assertTrue(leanbackHome.contains("@+id/tmdb"));
+        for (String id : new String[]{"tmdbSource", "detailInteractionMode", "detailThemeMode", "tmdbMatchMode", "tmdbEpisodeFileSize", "historyAggregation"}) {
+            assertTrue(mobileLayout.contains("@+id/" + id));
+            assertTrue(leanbackLayout.contains("@+id/" + id));
+            assertFalse(mobilePersonal.contains("@+id/" + id));
+            assertFalse(leanbackPersonal.contains("@+id/" + id));
+            assertFalse(mobileEnhance.contains("@+id/" + id));
+            assertFalse(leanbackEnhance.contains("@+id/" + id));
+        }
+        assertFalse(mobileLayout.contains("@+id/tmdbModel"));
+        assertFalse(leanbackLayout.contains("@+id/tmdbModel"));
+    }
+
+    @Test
+    public void aiSettingsLiveUnderDedicatedSettings() throws Exception {
+        Path root = moduleRoot();
+        String mobileHome = read(root.resolve(Path.of("src", "mobile", "res", "layout", "fragment_setting.xml")));
+        String leanbackHome = read(root.resolve(Path.of("src", "leanback", "res", "layout", "activity_setting.xml")));
+        String mobileLayout = read(root.resolve(Path.of("src", "mobile", "res", "layout", "fragment_setting_ai.xml")));
+        String leanbackLayout = read(root.resolve(Path.of("src", "leanback", "res", "layout", "activity_setting_ai.xml")));
+        String mobilePersonal = read(root.resolve(Path.of("src", "mobile", "res", "layout", "fragment_setting_personal.xml")));
+        String leanbackPersonal = read(root.resolve(Path.of("src", "leanback", "res", "layout", "activity_setting_personal.xml")));
+        String mobileEnhance = read(root.resolve(Path.of("src", "mobile", "res", "layout", "fragment_setting_enhance.xml")));
+        String leanbackEnhance = read(root.resolve(Path.of("src", "leanback", "res", "layout", "activity_setting_enhance.xml")));
+        String mobileSubtitle = read(root.resolve(Path.of("src", "mobile", "res", "layout", "fragment_setting_subtitle.xml")));
+        String leanbackSubtitle = read(root.resolve(Path.of("src", "leanback", "res", "layout", "activity_setting_subtitle.xml")));
+
+        assertTrue(mobileHome.contains("@+id/ai"));
+        assertTrue(leanbackHome.contains("@+id/ai"));
+        for (String id : new String[]{"aiRecommendation", "personalRecommendation", "recommendationFeedback", "aiAdDetection", "subtitleRealtimeModel", "subtitleAiSettings"}) {
+            assertTrue(mobileLayout.contains("@+id/" + id));
+            assertTrue(leanbackLayout.contains("@+id/" + id));
+            assertFalse(mobilePersonal.contains("@+id/" + id));
+            assertFalse(leanbackPersonal.contains("@+id/" + id));
+            assertFalse(mobileEnhance.contains("@+id/" + id));
+            assertFalse(leanbackEnhance.contains("@+id/" + id));
+            assertFalse(mobileSubtitle.contains("@+id/" + id));
+            assertFalse(leanbackSubtitle.contains("@+id/" + id));
+        }
+    }
+
+    @Test
+    public void dedicatedSettingsNavigationIsWired() throws Exception {
+        Path root = moduleRoot();
+        String mobileHome = read(root.resolve(Path.of("src", "mobile", "java", "com", "fongmi", "android", "tv", "ui", "activity", "HomeActivity.java")));
+        String mobileSetting = read(root.resolve(Path.of("src", "mobile", "java", "com", "fongmi", "android", "tv", "ui", "fragment", "SettingFragment.java")));
+        String leanbackSetting = read(root.resolve(Path.of("src", "leanback", "java", "com", "fongmi", "android", "tv", "ui", "activity", "SettingActivity.java")));
+        String leanbackManifest = read(root.resolve(Path.of("src", "leanback", "AndroidManifest.xml")));
+
+        assertTrue(mobileHome.contains("case 7 -> SettingTmdbFragment.newInstance()"));
+        assertTrue(mobileHome.contains("case 8 -> SettingAiFragment.newInstance()"));
+        assertTrue(mobileHome.contains("mManager.isVisible(7)"));
+        assertTrue(mobileHome.contains("mManager.isVisible(8)"));
+        assertTrue(mobileSetting.contains("getRoot().change(7)"));
+        assertTrue(mobileSetting.contains("getRoot().change(8)"));
+        assertTrue(leanbackSetting.contains("SettingTmdbActivity.start(this)"));
+        assertTrue(leanbackSetting.contains("SettingAiActivity.start(this)"));
+        assertTrue(leanbackManifest.contains(".ui.activity.SettingTmdbActivity"));
+        assertTrue(leanbackManifest.contains(".ui.activity.SettingAiActivity"));
+    }
+
+    @Test
+    public void adRuleManagementLivesUnderEnhanceSettings() throws Exception {
+        Path root = moduleRoot();
+        String mobileEnhance = read(root.resolve(Path.of("src", "mobile", "res", "layout", "fragment_setting_enhance.xml")));
+        String leanbackEnhance = read(root.resolve(Path.of("src", "leanback", "res", "layout", "activity_setting_enhance.xml")));
+        String mobileAi = read(root.resolve(Path.of("src", "mobile", "res", "layout", "fragment_setting_ai.xml")));
+        String leanbackAi = read(root.resolve(Path.of("src", "leanback", "res", "layout", "activity_setting_ai.xml")));
+
+        assertTrue(mobileEnhance.contains("@+id/adRuleManage"));
+        assertTrue(leanbackEnhance.contains("@+id/adRuleManage"));
+        assertFalse(mobileAi.contains("@+id/adRuleManage"));
+        assertFalse(leanbackAi.contains("@+id/adRuleManage"));
     }
 
     @Test

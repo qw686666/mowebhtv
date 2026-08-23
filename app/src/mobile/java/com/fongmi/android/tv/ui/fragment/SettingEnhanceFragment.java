@@ -7,16 +7,16 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
 
-import androidx.appcompat.app.AlertDialog;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.viewbinding.ViewBinding;
 
 import com.fongmi.android.tv.R;
-import com.fongmi.android.tv.bean.AiConfig;
+import com.fongmi.android.tv.api.config.ImportedAdRuleCandidateStore;
+import com.fongmi.android.tv.api.config.RuleConfig;
+import com.fongmi.android.tv.api.config.UserAdRuleStore;
 import com.fongmi.android.tv.bean.AudioConfig;
 import com.fongmi.android.tv.bean.ShortDramaConfig;
-import com.fongmi.android.tv.bean.TmdbConfig;
 import com.fongmi.android.tv.gitcloud.GitCloudAccountStore;
 import com.fongmi.android.tv.playback.ViewingRecordSyncStore;
 import com.fongmi.android.tv.remote.RemoteStore;
@@ -29,15 +29,12 @@ import com.fongmi.android.tv.setting.SiteNameStore;
 import com.fongmi.android.tv.ui.activity.HomeActivity;
 import com.fongmi.android.tv.ui.base.BaseFragment;
 import com.fongmi.android.tv.ui.dialog.AdRuleManageDialog;
-import com.fongmi.android.tv.ui.dialog.AiConfigDialog;
 import com.fongmi.android.tv.ui.dialog.AudioSourceDialog;
 import com.fongmi.android.tv.ui.dialog.ShortDramaSourceDialog;
-import com.fongmi.android.tv.ui.dialog.TmdbSourceDialog;
 import com.fongmi.android.tv.ui.dialog.CspWarmupDialog;
 import com.fongmi.android.tv.ui.dialog.CustomCspDialog;
 import com.fongmi.android.tv.ui.dialog.DebugLogDialog;
 import com.fongmi.android.tv.ui.dialog.GitCloudDialog;
-import com.fongmi.android.tv.ui.dialog.LightDialog;
 import com.fongmi.android.tv.ui.dialog.LoginStateLearnDialog;
 import com.fongmi.android.tv.ui.dialog.ManagePageDialog;
 import com.fongmi.android.tv.ui.dialog.OneKeySyncDialog;
@@ -53,15 +50,12 @@ import com.fongmi.android.tv.utils.Notify;
 import com.fongmi.android.tv.utils.PermissionUtil;
 import com.github.catvod.crawler.SpiderDebug;
 import com.fongmi.android.tv.web.ext.WebHomeExtensionRegistry;
-import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.gson.JsonObject;
 
 public class SettingEnhanceFragment extends BaseFragment {
 
     private static final String URL_GITHUB = "https://github.com/Silent1566/webhtv";
     private static final String URL_CNB = "https://cnb.cool/fish2018/ext";
-    private static final int[] DETAIL_OPEN_MODES = {Setting.DETAIL_OPEN_ORIGINAL_ENHANCED, Setting.DETAIL_OPEN_FUSION, Setting.DETAIL_OPEN_ENHANCED, Setting.DETAIL_OPEN_PLAYER, Setting.DETAIL_OPEN_DIRECT};
-    private static final int[] DETAIL_THEME_MODES = {Setting.DETAIL_STYLE_NATIVE, Setting.DETAIL_STYLE_PROFILE, Setting.DETAIL_STYLE_CINEMA};
 
     private FragmentSettingEnhanceBinding mBinding;
 
@@ -81,7 +75,6 @@ public class SettingEnhanceFragment extends BaseFragment {
     @Override
     protected void initView() {
         reorderItems();
-        mBinding.tmdbModel.setVisibility(View.GONE);
         setText();
     }
 
@@ -102,12 +95,7 @@ public class SettingEnhanceFragment extends BaseFragment {
         mBinding.siteName.setOnClickListener(this::setSiteName);
         mBinding.audioSource.setOnClickListener(this::setAudioSource);
         mBinding.shortDramaSource.setOnClickListener(this::setShortDramaSource);
-        mBinding.tmdbSource.setOnClickListener(this::setTmdbSource);
-        mBinding.aiRecommendation.setOnClickListener(this::setAiRecommendation);
-        mBinding.aiAdDetection.setOnClickListener(this::setAiAdDetection);
         mBinding.adRuleManage.setOnClickListener(view -> AdRuleManageDialog.create().show(requireActivity(), this::setText));
-        mBinding.detailInteractionMode.setOnClickListener(this::setDetailOpenMode);
-        mBinding.detailThemeMode.setOnClickListener(this::setDetailThemeMode);
         mBinding.debugLog.setOnClickListener(this::setDebugLog);
         mBinding.siteHealthSort.setOnClickListener(view -> SiteHealthDialog.show(this, this::setText));
         mBinding.siteHealthSort.setOnLongClickListener(this::clearSiteHealth);
@@ -153,11 +141,7 @@ public class SettingEnhanceFragment extends BaseFragment {
                 mBinding.siteName,
                 mBinding.audioSource,
                 mBinding.shortDramaSource,
-                mBinding.tmdbSource,
-                mBinding.aiRecommendation,
-                mBinding.tmdbModel,
-                mBinding.detailInteractionMode,
-                mBinding.detailThemeMode,
+                mBinding.adRuleManage,
                 mBinding.siteHealthSort,
                 mBinding.debugLog,
                 mBinding.playbackWebhook
@@ -172,19 +156,9 @@ public class SettingEnhanceFragment extends BaseFragment {
         safeSet("siteName", mBinding.siteNameText, () -> getString(R.string.setting_site_name_summary, SiteNameStore.count()));
         safeSet("audioSource", mBinding.audioSourceText, () -> getSwitch(!AudioConfig.objectFrom(Setting.getAudioConfig()).getDisplayRules().isEmpty()));
         safeSet("shortDramaSource", mBinding.shortDramaSourceText, () -> getSwitch(!ShortDramaConfig.objectFrom(Setting.getShortDramaConfig()).getDisplayRules().isEmpty()));
-        safeSet("tmdbSource", mBinding.tmdbSourceText, () -> getString(Setting.isTmdbReady() ? R.string.setting_configured : R.string.setting_unconfigured));
-        safeSet("aiRecommendation", mBinding.aiRecommendationText, this::getAiRecommendationText);
-        safeRun("aiAdDetectionVisibility", () -> {
-            int visibility = Setting.isAiConfigReady() ? View.VISIBLE : View.GONE;
-            mBinding.aiAdDetection.setVisibility(visibility);
-        }, null);
-        safeSet("aiAdDetection", mBinding.aiAdDetectionText, () -> getSwitch(Setting.isAiAdDetection()));
         safeSet("adRuleManage", mBinding.adRuleManageText, () -> getString(R.string.ad_rule_count_with_pending,
-                com.fongmi.android.tv.api.config.UserAdRuleStore.load().size() + com.fongmi.android.tv.api.config.RuleConfig.get().getDefaultRules().size(),
-                com.fongmi.android.tv.api.config.ImportedAdRuleCandidateStore.pending().size()));
-        safeSet("detailInteractionMode", mBinding.detailInteractionModeText, this::getDetailOpenModeText);
-        safeRun("detailThemeModeVisibility", () -> mBinding.detailThemeMode.setVisibility(Setting.isTmdbMode(Setting.getDetailOpenMode()) ? View.VISIBLE : View.GONE), null);
-        safeSet("detailThemeMode", mBinding.detailThemeModeText, this::getDetailThemeModeText);
+                UserAdRuleStore.load().size() + RuleConfig.get().getDefaultRules().size(),
+                ImportedAdRuleCandidateStore.pending().size()));
         safeSet("debugLog", mBinding.debugLogText, () -> getSwitch(Setting.isDebugLog()));
         safeSet("siteHealthSort", mBinding.siteHealthSortText, this::getSiteHealthText);
         safeSet("webHomeExtension", mBinding.webHomeExtensionText, () -> {
@@ -284,93 +258,11 @@ public class SettingEnhanceFragment extends BaseFragment {
         ShortDramaSourceDialog.create(requireActivity()).onDismiss(this::setText).show();
     }
 
-    private void setTmdbSource(View view) {
-        com.fongmi.android.tv.ui.dialog.TmdbSourceDialog.create(requireActivity()).onDismiss(this::setText).show();
-    }
-
-    private void setAiRecommendation(View view) {
-        AiConfigDialog.create(requireActivity()).onDismiss(this::setText).show();
-    }
-
-    private void setAiAdDetection(View view) {
-        Setting.putAiAdDetection(!Setting.isAiAdDetection());
-        setText();
-    }
-
-    private String getAiRecommendationText() {
-        AiConfig config = AiConfig.objectFrom(Setting.getAiConfig());
-        if (!config.isEnabled()) return getSwitch(false);
-        return config.isReady() ? getString(R.string.setting_configured) : getString(R.string.setting_unconfigured);
-    }
-
-    private String getDetailOpenModeText() {
-        String[] labels = getDetailOpenModes();
-        int mode = Setting.getDetailOpenMode();
-        for (int i = 0; i < DETAIL_OPEN_MODES.length; i++) if (DETAIL_OPEN_MODES[i] == mode) return labels[i];
-        return labels[0];
-    }
-
-    private String[] getDetailOpenModes() {
-        return new String[]{getString(R.string.setting_detail_open_original_enhanced), getString(R.string.setting_detail_open_fusion), getString(R.string.setting_detail_open_enhanced), getString(R.string.setting_detail_open_player), getString(R.string.setting_detail_open_direct)};
-    }
-
-    private String getDetailThemeModeText() {
-        String[] labels = getDetailThemeModes();
-        int mode = Setting.getTmdbDetailStyle();
-        for (int i = 0; i < DETAIL_THEME_MODES.length; i++) if (DETAIL_THEME_MODES[i] == mode) return labels[i];
-        return labels[0];
-    }
-
     private String getSiteHealthText() {
         SiteHealthStore.Summary summary = SiteHealthStore.summary();
         String state = getSwitch(Setting.isSiteHealthSort());
         if (summary.siteCount <= 0) return state;
         return state + " · " + getString(R.string.site_health_report_setting_summary, summary.siteCount, summary.sampleCount);
-    }
-
-    private String[] getDetailThemeModes() {
-        return new String[]{getString(R.string.setting_detail_theme_native), getString(R.string.setting_detail_theme_profile), getString(R.string.setting_detail_theme_cinema)};
-    }
-
-    private void setDetailOpenMode(View view) {
-        AlertDialog alert = new MaterialAlertDialogBuilder(requireActivity(), R.style.Theme_WebHTV_LightDialog).setTitle(R.string.setting_detail_open_mode).setNegativeButton(R.string.dialog_negative, null).setSingleChoiceItems(getDetailOpenModes(), getDetailOpenModeIndex(), (dialog, which) -> {
-            int mode = DETAIL_OPEN_MODES[which];
-            if (Setting.isTmdbMode(mode) && !Setting.isTmdbReady()) {
-                dialog.dismiss();
-                Notify.show(R.string.detail_tmdb_need_key);
-                com.fongmi.android.tv.ui.dialog.TmdbSourceDialog.create(requireActivity()).onDismiss(() -> {
-                    if (Setting.isTmdbReady()) Setting.putDetailOpenMode(mode);
-                    setText();
-                }).show();
-                return;
-            }
-            Setting.putDetailOpenMode(mode);
-            setText();
-            dialog.dismiss();
-        }).show();
-        LightDialog.apply(alert);
-    }
-
-    private int getDetailOpenModeIndex() {
-        int mode = Setting.getDetailOpenMode();
-        for (int i = 0; i < DETAIL_OPEN_MODES.length; i++) if (DETAIL_OPEN_MODES[i] == mode) return i;
-        return 0;
-    }
-
-    private void setDetailThemeMode(View view) {
-        if (!Setting.isTmdbMode(Setting.getDetailOpenMode())) return;
-        AlertDialog alert = new MaterialAlertDialogBuilder(requireActivity(), R.style.Theme_WebHTV_LightDialog).setTitle(R.string.setting_detail_theme_mode).setNegativeButton(R.string.dialog_negative, null).setSingleChoiceItems(getDetailThemeModes(), getDetailThemeModeIndex(), (dialog, which) -> {
-            Setting.putTmdbDetailStyle(DETAIL_THEME_MODES[which]);
-            setText();
-            dialog.dismiss();
-        }).show();
-        LightDialog.apply(alert);
-    }
-
-    private int getDetailThemeModeIndex() {
-        int mode = Setting.getTmdbDetailStyle();
-        for (int i = 0; i < DETAIL_THEME_MODES.length; i++) if (DETAIL_THEME_MODES[i] == mode) return i;
-        return 0;
     }
 
     private void setPlaybackArtworkWall(View view) {

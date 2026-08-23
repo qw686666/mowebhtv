@@ -10,6 +10,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.fongmi.android.tv.R;
 import com.fongmi.android.tv.utils.ImgUtil;
+import com.fongmi.android.tv.utils.ResUtil;
 import com.fongmi.android.tv.utils.Util;
 import com.google.android.material.card.MaterialCardView;
 
@@ -26,6 +27,7 @@ public class TmdbPhotoAdapter extends RecyclerView.Adapter<TmdbPhotoAdapter.View
     private OnItemClickListener listener;
     private boolean legacyMode;
     private boolean light;
+    private final boolean poster;
 
     public interface OnItemClickListener {
         void onItemClick(String url, int position);
@@ -36,9 +38,19 @@ public class TmdbPhotoAdapter extends RecyclerView.Adapter<TmdbPhotoAdapter.View
     }
 
     public TmdbPhotoAdapter() {
+        this(false);
+    }
+
+    public TmdbPhotoAdapter(boolean poster) {
+        this.poster = poster;
     }
 
     public TmdbPhotoAdapter(Listener listener) {
+        this(listener, false);
+    }
+
+    public TmdbPhotoAdapter(Listener listener, boolean poster) {
+        this.poster = poster;
         this.legacyListener = listener;
         this.legacyMode = true;
     }
@@ -85,12 +97,19 @@ public class TmdbPhotoAdapter extends RecyclerView.Adapter<TmdbPhotoAdapter.View
     @NonNull
     @Override
     public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        return new ViewHolder(LayoutInflater.from(parent.getContext()).inflate(R.layout.adapter_tmdb_photo, parent, false));
+        View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.adapter_tmdb_photo, parent, false);
+        if (poster) {
+            ViewGroup.LayoutParams params = view.getLayoutParams();
+            params.width = ResUtil.dp2px(148);
+            params.height = ResUtil.dp2px(222);
+            view.setLayoutParams(params);
+        }
+        return new ViewHolder(view);
     }
 
     @Override
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
-        holder.bind(items.get(position), position, listener, light);
+        holder.bind(items.get(position), position, listener, light, poster);
     }
 
     @Override
@@ -113,9 +132,10 @@ public class TmdbPhotoAdapter extends RecyclerView.Adapter<TmdbPhotoAdapter.View
             photo = itemView.findViewById(R.id.photo);
         }
 
-        void bind(String url, int position, OnItemClickListener listener, boolean light) {
+        void bind(String url, int position, OnItemClickListener listener, boolean light, boolean poster) {
             TmdbCardFocusHelper.bind(card, light ? 0xEEFFFFFF : 0xCC16202A, light ? 0x33647480 : 0x33FFFFFF);
-            ImgUtil.load(photo.getContext().getString(R.string.tmdb_photos_label), url, photo);
+            int label = poster ? R.string.tmdb_posters_label : R.string.tmdb_photos_label;
+            ImgUtil.load(photo.getContext().getString(label), url, photo);
 
             if (listener != null) {
                 itemView.setOnClickListener(v -> listener.onItemClick(url, position));

@@ -74,6 +74,51 @@ public class TmdbImageSelectorTest {
     }
 
     @Test
+    public void backdrops_excludePostersAndKeepResolutionOrdering() {
+        JsonObject detail = detail("""
+                {
+                  "images": {
+                    "backdrops": [
+                      {"file_path": "/small_backdrop.jpg", "width": 1280, "height": 720},
+                      {"file_path": "/large_backdrop.jpg", "width": 3840, "height": 2160}
+                    ],
+                    "posters": [
+                      {"file_path": "/poster.jpg", "width": 2000, "height": 3000}
+                    ]
+                  }
+                }
+                """);
+
+        List<String> urls = TmdbImageSelector.backdrops(detail, "https://image.tmdb.org/t/p/w780", 10);
+
+        assertEquals(List.of(
+                "https://image.tmdb.org/t/p/original/large_backdrop.jpg",
+                "https://image.tmdb.org/t/p/original/small_backdrop.jpg"), urls);
+    }
+
+    @Test
+    public void posters_excludeBackdropsAndKeepResolutionOrdering() {
+        JsonObject detail = detail("""
+                {
+                  "images": {
+                    "backdrops": [
+                      {"file_path": "/backdrop.jpg", "width": 3840, "height": 2160}
+                    ],
+                    "posters": [
+                      {"file_path": "/small_poster.jpg", "width": 1000, "height": 1500},
+                      {"file_path": "/large_poster.jpg", "width": 2000, "height": 3000}
+                    ]
+                  }
+                }
+                """);
+
+        List<String> urls = TmdbImageSelector.posters(detail, "https://image.tmdb.org/t/p/w500", 10);
+
+        assertEquals(List.of(
+                "https://image.tmdb.org/t/p/original/large_poster.jpg",
+                "https://image.tmdb.org/t/p/original/small_poster.jpg"), urls);
+    }
+    @Test
     public void originalUrl_replacesTmdbSizeSegment() {
         assertEquals("https://image.tmdb.org/t/p/original/abc.jpg", TmdbImageSelector.originalUrl("https://image.tmdb.org/t/p/w780/abc.jpg"));
     }

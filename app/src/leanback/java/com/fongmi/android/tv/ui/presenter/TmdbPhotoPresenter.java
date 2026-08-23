@@ -9,13 +9,20 @@ import androidx.leanback.widget.Presenter;
 import com.fongmi.android.tv.R;
 import com.fongmi.android.tv.databinding.AdapterTmdbPhotoBinding;
 import com.fongmi.android.tv.utils.ImgUtil;
+import com.fongmi.android.tv.utils.ResUtil;
 
 public class TmdbPhotoPresenter extends Presenter {
 
     private final OnClickListener mListener;
+    private final boolean poster;
 
     public TmdbPhotoPresenter(OnClickListener listener) {
+        this(listener, false);
+    }
+
+    public TmdbPhotoPresenter(OnClickListener listener, boolean poster) {
         this.mListener = listener;
+        this.poster = poster;
     }
 
     public interface OnClickListener {
@@ -24,14 +31,22 @@ public class TmdbPhotoPresenter extends Presenter {
 
     @Override
     public Presenter.ViewHolder onCreateViewHolder(ViewGroup parent) {
-        return new ViewHolder(AdapterTmdbPhotoBinding.inflate(LayoutInflater.from(parent.getContext()), parent, false));
+        AdapterTmdbPhotoBinding binding = AdapterTmdbPhotoBinding.inflate(LayoutInflater.from(parent.getContext()), parent, false);
+        if (poster) {
+            ViewGroup.LayoutParams params = binding.getRoot().getLayoutParams();
+            params.width = ResUtil.dp2px(148);
+            params.height = ResUtil.dp2px(222);
+            binding.getRoot().setLayoutParams(params);
+        }
+        return new ViewHolder(binding);
     }
 
     @Override
     public void onBindViewHolder(Presenter.ViewHolder viewHolder, Object item) {
         String url = (String) item;
         ViewHolder holder = (ViewHolder) viewHolder;
-        ImgUtil.load(holder.binding.photo.getContext().getString(R.string.tmdb_photos_label), url, holder.binding.photo);
+        int label = poster ? R.string.tmdb_posters_label : R.string.tmdb_photos_label;
+        ImgUtil.load(holder.binding.photo.getContext().getString(label), url, holder.binding.photo);
         setOnClickListener(holder, view -> {
             if (mListener != null) mListener.onItemClick(url, 0);
         });

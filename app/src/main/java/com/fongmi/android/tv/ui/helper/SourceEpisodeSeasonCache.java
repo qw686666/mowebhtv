@@ -68,6 +68,24 @@ public final class SourceEpisodeSeasonCache {
         vodSeasons.clear();
     }
 
+    /**
+     * 该线路是否混排了多个季（各集解析出的季号不止一个）。
+     * 这种线路里集名不足以唯一标识一集（两季都有"第01集"），播放位置缓存必须放弃使用，
+     * 否则没看过的一集会读到另一季同名集的进度。注意：整条线路都解析不出季号（单季剧常态）
+     * 不算混排，此时集名在该 vodId 内唯一，缓存照常可用。
+     */
+    public boolean hasMixedSeasons(Flag flag) {
+        if (flag == null || flag.getEpisodes() == null) return false;
+        Integer season = null;
+        for (Episode episode : flag.getEpisodes()) {
+            int candidate = episodeResolver.applyAsInt(episode);
+            if (candidate < 0) continue;
+            if (season != null && season != candidate) return true;
+            season = candidate;
+        }
+        return false;
+    }
+
     private static int resolveEpisodeSeason(Episode episode) {
         int candidate = EpisodeSeasonPolicy.resolveExplicitSourceSeason(episode == null ? "" : episode.getName());
         if (candidate >= 0) return candidate;

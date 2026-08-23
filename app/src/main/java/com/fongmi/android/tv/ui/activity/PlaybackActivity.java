@@ -33,6 +33,7 @@ import androidx.media3.ui.PlayerView;
 import com.fongmi.android.tv.R;
 import com.fongmi.android.tv.bean.Result;
 import com.fongmi.android.tv.player.PlaybackAutoContext;
+import com.fongmi.android.tv.player.PlaybackServiceReleasePolicy;
 import com.fongmi.android.tv.player.PlaybackTelemetry;
 import com.fongmi.android.tv.player.PlayerManager;
 import com.fongmi.android.tv.player.VideoAspectMode;
@@ -188,6 +189,32 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
         String key = getPlaybackKey();
         PlayerManager manager = player();
         return key == null || (manager != null && key.equals(manager.getKey()));
+    }
+
+    public final boolean pauseForOverlayPlayback() {
+        if (!isOwner() || isFinishing() || isDestroyed()) return false;
+        PlayerManager manager = player();
+        if (manager == null || manager.isReleased() || manager.isEmpty()) return false;
+        Player active = mController != null ? mController : manager.getPlayer();
+        int state = active.getPlaybackState();
+        boolean shouldResume = active.isPlaying() || (active.getPlayWhenReady() && (state == Player.STATE_BUFFERING || state == Player.STATE_READY));
+        if (!shouldResume) return false;
+        if (mController != null) mController.pause();
+        else manager.pause();
+        syncKeepScreenOn();
+        return true;
+    }
+
+    public final void resumeAfterOverlayPlayback(boolean shouldResume) {
+        if (!shouldResume || isFinishing() || isDestroyed() || !isOwner()) return;
+        PlayerManager manager = player();
+        if (manager == null || manager.isReleased() || manager.isEmpty()) return;
+        Player active = mController != null ? mController : manager.getPlayer();
+        int state = active.getPlaybackState();
+        if (state == Player.STATE_IDLE || state == Player.STATE_ENDED || active.getPlayWhenReady()) return;
+        if (mController != null) mController.play();
+        else manager.play();
+        syncKeepScreenOn();
     }
 
     protected boolean isIdle() {
@@ -650,13 +677,16 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
     private void releaseService(boolean owner) {
         mService.removePlayerCallback(mPlayerCallback);
         mService.clearNavigationCallback(getNavigationCallback());
-        if (owner && mService.isKeepAlive()) {
-            mService.resetSessionActivity();
-        } else if (mService.hasExternalClient() || mService.hasPlayerCallback()) {
-            if (owner) mService.suspend();
-            mService.resetSessionActivity();
-        } else if (owner) {
-            mService.shutdown();
+        boolean hasConsumer = mService.hasExternalClient() || mService.hasPlayerCallback();
+        switch (PlaybackServiceReleasePolicy.decide(owner, mService.isKeepAlive(), hasConsumer)) {
+            case RESET_SESSION -> mService.resetSessionActivity();
+            case SUSPEND_AND_RESET -> {
+                mService.suspend();
+                mService.resetSessionActivity();
+            }
+            case SHUTDOWN -> mService.shutdown();
+            case DETACH -> {
+            }
         }
     }
 

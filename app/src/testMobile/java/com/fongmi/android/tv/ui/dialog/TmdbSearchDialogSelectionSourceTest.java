@@ -43,6 +43,34 @@ public class TmdbSearchDialogSelectionSourceTest {
                         && selector.contains("android:state_focused=\"true\""));
     }
 
+    @Test
+    public void leanbackTmdbDialogUsesScreenRelativeSizingAndReadableRows() throws Exception {
+        String dialog = readMainJava("com", "fongmi", "android", "tv", "ui", "dialog", "TmdbSearchDialog.java");
+        String dialogLayout = readMainRes("layout", "dialog_result_list.xml");
+        Path root = Path.of("").toAbsolutePath();
+        Path leanbackItemPath = root.resolve(Path.of("app", "src", "leanback", "res", "layout", "adapter_tmdb_item.xml"));
+        if (!Files.exists(leanbackItemPath)) leanbackItemPath = root.resolve(Path.of("src", "leanback", "res", "layout", "adapter_tmdb_item.xml"));
+        String leanbackItemLayout = Files.exists(leanbackItemPath) ? read(leanbackItemPath) : "";
+
+        assertTrue("TV dialog width must scale with the current display instead of stopping at a small fixed dp cap",
+                dialog.contains("boolean leanback = Util.isLeanback();")
+                        && dialog.contains("metrics.widthPixels * 0.88f"));
+        assertTrue("TV result list height must scale with the current display",
+                dialog.contains("metrics.heightPixels * 0.52f"));
+        assertTrue("TV search controls must use readable text and remote-friendly focus targets",
+                dialogLayout.contains("android:textSize=\"24sp\"")
+                        && dialogLayout.contains("android:textSize=\"20sp\"")
+                        && dialogLayout.contains("android:minWidth=\"120dp\"")
+                        && dialogLayout.contains("android:minHeight=\"64dp\""));
+        assertTrue("TV result rows must have their own larger leanback layout",
+                leanbackItemLayout.contains("android:minHeight=\"144dp\"")
+                        && leanbackItemLayout.contains("android:layout_width=\"88dp\"")
+                        && leanbackItemLayout.contains("android:layout_height=\"120dp\"")
+                        && leanbackItemLayout.contains("android:textSize=\"22sp\"")
+                        && leanbackItemLayout.contains("android:textSize=\"16sp\""));
+    }
+
+
     private static String readMainJava(String... parts) throws Exception {
         Path path = mainPath("java");
         for (String part : parts) path = path.resolve(part);
