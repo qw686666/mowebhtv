@@ -2,8 +2,8 @@ name: 同步上游 Release
 
 on:
   schedule:
+    # 每天北京时间 12:00 / 日本时间 13:00
     - cron: "0 4 * * *"
-
   workflow_dispatch:
 
 permissions:
@@ -12,6 +12,7 @@ permissions:
 jobs:
   sync:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: 检查并同步 Release
@@ -19,93 +20,139 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
-          set -e
+          set -uo pipefail
 
           SOURCE="Silent1566/webhtv"
           TARGET="qw686666/mowebhtv"
-
-          # 从这个时间开始同步，包含这个时间点之后的 Release
           MIN_DATE="2026-08-10T15:55:00Z"
 
           echo "======================================"
-          echo "开始检查上游 Release"
+          echo "开始同步上游 Release"
+          echo "来源：$SOURCE"
+          echo "目标：$TARGET"
           echo "同步起点：$MIN_DATE"
           echo "======================================"
 
-          gh release list \
-            -R "$SOURCE" \
-            --limit 100 \
-            --json tagName,name,isPrerelease,isDraft,publishedAt \
-            > releases.json
+          mkdir -p work
 
-          jq -c '.[] | select(.isDraft == false)' releases.json |
+          # 获取上游全部 Release
+          gh api \
+            --paginate \
+            "repos/$SOURCE/releases?per_page=100" \
+            > work/releases-pages.json
+
+          # 合并所有分页结果
+          jq -s 'add' work/releases-pages.json > work/releases.json
+
+          TOTAL=$(jq 'length' work/releases.json)
+          echo "上游 Release 总数：$TOTAL"
+
+          SYNCED=0
+          EXISTING=0
+          FAILED=0
+
+          # 按发布时间从旧到新处理
+          jq -c '
+            map(
+              select(.draft == false)
+              | select(.published_at != null)
+              | select(.published_at >= "'"$MIN_DATE"'")
+            )
+            | sort_by(.published_at)
+            | .[]
+          ' work/releases.json |
           while read -r release; do
 
-            TAG=$(echo "$release" | jq -r '.tagName')
+            TAG=$(echo "$release" | jq -r '.tag_name')
             NAME=$(echo "$release" | jq -r '.name')
-            PRERELEASE=$(echo "$release" | jq -r '.isPrerelease')
-            PUBLISHED=$(echo "$release" | jq -r '.publishedAt')
+            PRERELEASE=$(echo "$release" | jq -r '.prerelease')
+            PUBLISHED=$(echo "$release" | jq -r '.published_at')
+            BODY=$(echo "$release" | jq -r '.body // ""')
 
             echo ""
+            echo "--------------------------------------"
             echo "检查：$TAG"
             echo "发布时间：$PUBLISHED"
 
-            # 跳过 2026-08-10 15:55 之前的 Release
-            if [[ "$PUBLISHED" < "$MIN_DATE" ]]; then
-              echo "早于同步起点，跳过：$TAG"
-              continue
-            fi
-
-            # 目标仓库已经存在就跳过
+            # 已经存在
             if gh release view "$TAG" -R "$TARGET" >/dev/null 2>&1; then
-              echo "已存在，跳过：$TAG"
+              echo "已存在：$TAG"
               continue
             fi
 
-            echo "发现新 Release：$TAG"
+            echo "发现缺失 Release：$TAG"
 
-            DIR="release/$TAG"
+            DIR="work/$TAG"
+            rm -rf "$DIR"
             mkdir -p "$DIR"
 
-            echo "获取 Release 描述..."
+            printf '%s\n' "$BODY" > "$DIR/notes.md"
 
-            gh api \
-              "repos/$SOURCE/releases/tags/$TAG" \
-              --jq '.body' \
-              > "$DIR/notes.md"
+            echo "开始下载 Assets..."
 
-            echo "下载 Assets..."
-
-            gh release download "$TAG" \
+            # 单个 Release 下载最多允许 5 分钟
+            if timeout 300 gh release download "$TAG" \
               -R "$SOURCE" \
-              -D "$DIR"
-
-            echo "开始创建 Release..."
-
-            if [ "$PRERELEASE" = "true" ]; then
-
-              gh release create "$TAG" \
-                -R "$TARGET" \
-                --title "$NAME" \
-                --notes-file "$DIR/notes.md" \
-                --prerelease \
-                "$DIR"/*
-
+              -D "$DIR" \
+              --clobber
+            then
+              echo "Assets 下载完成：$TAG"
             else
-
-              gh release create "$TAG" \
-                -R "$TARGET" \
-                --title "$NAME" \
-                --notes-file "$DIR/notes.md" \
-                "$DIR"/*
-
+              echo "❌ Assets 下载失败或超时：$TAG"
+              FAILED=$((FAILED + 1))
+              rm -rf "$DIR"
+              continue
             fi
 
-            echo "同步完成：$TAG"
+            # 删除 notes 文件，避免把说明文件错误上传成 Asset
+            rm -f "$DIR/notes.md"
 
+            # 检查是否真的下载到了文件
+            if ! find "$DIR" -type f | grep -q .; then
+              echo "❌ 没有发现 Assets：$TAG"
+              FAILED=$((FAILED + 1))
+              rm -rf "$DIR"
+              continue
+            fi
+
+            echo "开始创建 Release：$TAG"
+
+            if [ "$PRERELEASE" = "true" ]; then
+              if timeout 180 gh release create "$TAG" \
+                -R "$TARGET" \
+                --title "$NAME" \
+                --notes "$BODY" \
+                --prerelease \
+                "$DIR"/*
+              then
+                echo "✅ 同步完成：$TAG"
+                SYNCED=$((SYNCED + 1))
+              else
+                echo "❌ 创建 Release 失败：$TAG"
+                FAILED=$((FAILED + 1))
+              fi
+            else
+              if timeout 180 gh release create "$TAG" \
+                -R "$TARGET" \
+                --title "$NAME" \
+                --notes "$BODY" \
+                "$DIR"/*
+              then
+                echo "✅ 同步完成：$TAG"
+                SYNCED=$((SYNCED + 1))
+              else
+                echo "❌ 创建 Release 失败：$TAG"
+                FAILED=$((FAILED + 1))
+              fi
+            fi
+
+            rm -rf "$DIR"
           done
 
           echo ""
           echo "======================================"
           echo "同步检查完成"
+          echo "======================================"
+          echo "缺失并成功同步：$SYNCED"
+          echo "下载/创建失败：$FAILED"
           echo "======================================"
