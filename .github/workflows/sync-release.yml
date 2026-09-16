@@ -30,7 +30,7 @@ jobs:
             "repos/${SOURCE}/releases?per_page=100" \
             --slurp > releases.json
 
-          jq -s 'add' releases.json > all-releases.json
+          jq s 'add' releases.json > all-releases.json
 
           jq -c '
             .[]
