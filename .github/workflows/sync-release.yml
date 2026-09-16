@@ -17,86 +17,145 @@ jobs:
       - name: 同步 Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
         run: |
           set -e
 
           SOURCE="Silent1566/webhtv"
           TARGET="qw686666/mowebhtv"
+          MIN_DATE="2026-08-10T15:55:00Z"
 
+          echo "================================"
           echo "开始检查上游 Release..."
+          echo "================================"
 
+          # --------------------------------------------------
+          # 获取上游全部 Release
+          #
+          # 关键修复：
+          # 不再使用 --slurp + add。
+          #
+          # --paginate 会逐页获取 JSON 数组，
+          # --jq '.[]' 会把每一页中的 Release 逐个输出为
+          # 独立 JSON 对象，最终形成 NDJSON。
+          # --------------------------------------------------
           gh api \
             --paginate \
             "repos/${SOURCE}/releases?per_page=100" \
-            --slurp > releases.json
-
-          jq 'add' releases.json > all-releases.json
-
+            --jq '.[]' |
           jq -c '
-            .[]
-            | select(.draft == false)
+            select(.draft == false)
             | select(.published_at != null)
-            | select(.published_at >= "2026-08-10T15:55:00Z")
-            | .
-          ' all-releases.json > releases-to-sync.json
+            | select(.published_at >= "'"$MIN_DATE"'")
+          ' > releases-to-sync.json
 
-          while read -r release; do
+          echo "需要检查的 Release："
+          cat releases-to-sync.json || true
+          echo ""
+
+          # --------------------------------------------------
+          # 逐个检查并同步 Release
+          # --------------------------------------------------
+          while IFS= read -r release; do
+
+            [ -z "$release" ] && continue
 
             TAG=$(echo "$release" | jq -r '.tag_name')
             NAME=$(echo "$release" | jq -r '.name')
             BODY=$(echo "$release" | jq -r '.body // ""')
             PRERELEASE=$(echo "$release" | jq -r '.prerelease')
 
-            echo "检查 $TAG"
+            echo "--------------------------------"
+            echo "检查 Release：$TAG"
+            echo "标题：$NAME"
+            echo "预发布：$PRERELEASE"
+            echo "--------------------------------"
 
+            # ------------------------------------------------
+            # 如果目标仓库已经存在，则跳过
+            # ------------------------------------------------
             if gh release view "$TAG" -R "$TARGET" >/dev/null 2>&1; then
-              echo "已存在：$TAG"
+              echo "已存在，跳过：$TAG"
               continue
             fi
 
-            echo "发现新 Release：$TAG"
+            echo "发现新的 Release：$TAG"
 
+            # ------------------------------------------------
+            # 创建临时下载目录
+            # ------------------------------------------------
             DIR="release-$TAG"
+
             rm -rf "$DIR"
             mkdir -p "$DIR"
+
+            # ------------------------------------------------
+            # 下载上游 Release Assets
+            # ------------------------------------------------
+            echo "开始下载 Assets：$TAG"
 
             if ! timeout 300 gh release download "$TAG" \
               -R "$SOURCE" \
               -D "$DIR"; then
-              echo "下载失败：$TAG"
+
+              echo "下载失败，跳过：$TAG"
               rm -rf "$DIR"
               continue
             fi
 
-            FILES=$(find "$DIR" -type f)
+            # ------------------------------------------------
+            # 检查是否存在 Assets
+            # ------------------------------------------------
+            FILE_COUNT=$(find "$DIR" -type f | wc -l)
 
-            if [ -z "$FILES" ]; then
-              echo "没有 Assets：$TAG"
+            if [ "$FILE_COUNT" -eq 0 ]; then
+              echo "该 Release 没有 Assets，跳过：$TAG"
               rm -rf "$DIR"
               continue
             fi
+
+            echo "发现 $FILE_COUNT 个 Assets"
+
+            # ------------------------------------------------
+            # 创建目标 Release
+            # 保留：
+            # - Tag
+            # - Release 标题
+            # - Release 正文
+            # - Pre-release 状态
+            # - 所有 Assets
+            # ------------------------------------------------
+            echo "开始创建目标 Release：$TAG"
 
             if [ "$PRERELEASE" = "true" ]; then
+
               gh release create "$TAG" \
                 -R "$TARGET" \
                 --title "$NAME" \
                 --notes "$BODY" \
                 --prerelease \
                 "$DIR"/*
+
             else
+
               gh release create "$TAG" \
                 -R "$TARGET" \
                 --title "$NAME" \
                 --notes "$BODY" \
                 "$DIR"/*
+
             fi
 
             echo "同步完成：$TAG"
 
+            # ------------------------------------------------
+            # 删除临时文件
+            # ------------------------------------------------
             rm -rf "$DIR"
 
           done < releases-to-sync.json
 
+          echo ""
           echo "================================"
           echo "Release 同步检查完成"
           echo "================================"
