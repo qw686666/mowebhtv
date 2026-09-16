@@ -3,6 +3,7 @@ name: 同步上游 Release
 on:
   schedule:
     - cron: "0 4 * * *"
+
   workflow_dispatch:
 
 permissions:
@@ -22,6 +23,7 @@ jobs:
 
           SOURCE="Silent1566/webhtv"
           TARGET="qw686666/mowebhtv"
+
           MIN_DATE="2026-08-10T15:55:00Z"
 
           echo "======================================"
