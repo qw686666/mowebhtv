@@ -11,10 +11,9 @@ permissions:
 jobs:
   sync:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
 
     steps:
-      - name: 同步 Release
+      - name: 检查并同步 Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
@@ -25,152 +24,65 @@ jobs:
           TARGET="qw686666/mowebhtv"
           MIN_DATE="2026-08-10T15:55:00Z"
 
-          echo "================================"
-          echo "开始检查上游 Release..."
-          echo "================================"
+          echo "======================================"
+          echo "开始检查上游 Release"
+          echo "同步起点：$MIN_DATE"
+          echo "======================================"
 
-          # ==================================================
-          # 获取上游全部 Release
-          #
-          # --paginate  获取全部分页
-          # --slurp     把分页结果整体收集
-          #
-          # 这里绝对不再使用 jq add。
-          # flatten 可以兼容：
-          #   [[release, release], [release, release]]
-          # 和：
-          #   [release, release]
-          # 最终统一得到：
-          #   [release, release, release]
-          # ==================================================
-
-          gh api \
-            --paginate \
-            --slurp \
-            "repos/${SOURCE}/releases?per_page=100" \
+          gh release list \
+            -R "$SOURCE" \
+            --limit 100 \
+            --json tagName,name,isPrerelease,isDraft,publishedAt \
             > releases.json
 
-          echo "原始分页 JSON 已获取"
+          jq -c '.[] | select(.isDraft == false)' releases.json |
+          while read -r release; do
 
-          jq 'flatten' releases.json > all-releases.json
-
-          echo "上游 Release 总数量："
-          jq 'length' all-releases.json
-
-          # ==================================================
-          # 筛选需要同步的 Release
-          # ==================================================
-
-          jq -c '
-            .[]
-            | select(.draft == false)
-            | select(.published_at != null)
-            | select(.published_at >= "'"$MIN_DATE"'")
-          ' all-releases.json > releases-to-sync.json
-
-          echo ""
-          echo "================================"
-          echo "符合同步条件的 Release："
-          echo "================================"
-
-          jq -r '.tag_name' releases-to-sync.json
-
-          echo ""
-
-          # ==================================================
-          # 逐个同步 Release
-          # ==================================================
-
-          while IFS= read -r release; do
-
-            [ -z "$release" ] && continue
-
-            TAG=$(echo "$release" | jq -r '.tag_name')
+            TAG=$(echo "$release" | jq -r '.tagName')
             NAME=$(echo "$release" | jq -r '.name')
-            PRERELEASE=$(echo "$release" | jq -r '.prerelease')
-
-            # Release 正文单独获取，避免列表接口内容不完整
-            BODY=$(gh api \
-              "repos/${SOURCE}/releases/tags/${TAG}" \
-              --jq '.body // ""')
+            PRERELEASE=$(echo "$release" | jq -r '.isPrerelease')
+            PUBLISHED=$(echo "$release" | jq -r '.publishedAt')
 
             echo ""
-            echo "--------------------------------"
-            echo "检查 Release：$TAG"
-            echo "标题：$NAME"
-            echo "预发布：$PRERELEASE"
-            echo "--------------------------------"
+            echo "检查：$TAG"
+            echo "发布时间：$PUBLISHED"
 
-            # ==================================================
-            # 目标仓库已经存在
-            # ==================================================
+            if [[ "$PUBLISHED" < "$MIN_DATE" ]]; then
+              echo "早于同步起点，跳过：$TAG"
+              continue
+            fi
 
-            if gh release view "$TAG" \
-              -R "$TARGET" >/dev/null 2>&1; then
-
+            if gh release view "$TAG" -R "$TARGET" >/dev/null 2>&1; then
               echo "已存在，跳过：$TAG"
               continue
             fi
 
             echo "发现新 Release：$TAG"
 
-            # ==================================================
-            # 创建临时目录
-            # ==================================================
-
-            DIR="release-$TAG"
-
-            rm -rf "$DIR"
+            DIR="release/$TAG"
             mkdir -p "$DIR"
 
-            # ==================================================
-            # 下载上游 Release Assets
-            # ==================================================
+            echo "获取 Release 描述..."
 
-            echo "开始下载 Assets：$TAG"
+            gh api \
+              "repos/$SOURCE/releases/tags/$TAG" \
+              --jq '.body' \
+              > "$DIR/notes.md"
 
-            if ! timeout 300 gh release download "$TAG" \
+            echo "下载 Assets..."
+
+            gh release download "$TAG" \
               -R "$SOURCE" \
-              -D "$DIR"; then
+              -D "$DIR"
 
-              echo "下载失败，跳过：$TAG"
-              rm -rf "$DIR"
-              continue
-            fi
-
-            # ==================================================
-            # 检查 Assets
-            # ==================================================
-
-            FILE_COUNT=$(find "$DIR" -type f | wc -l)
-
-            if [ "$FILE_COUNT" -eq 0 ]; then
-              echo "没有 Assets，跳过：$TAG"
-              rm -rf "$DIR"
-              continue
-            fi
-
-            echo "发现 Assets：$FILE_COUNT 个"
-
-            # ==================================================
-            # 创建目标 Release
-            #
-            # 保留：
-            # Tag
-            # 标题
-            # Release 正文
-            # prerelease 状态
-            # 全部 Assets
-            # ==================================================
-
-            echo "开始创建目标 Release：$TAG"
+            echo "开始创建 Release..."
 
             if [ "$PRERELEASE" = "true" ]; then
 
               gh release create "$TAG" \
                 -R "$TARGET" \
                 --title "$NAME" \
-                --notes "$BODY" \
+                --notes-file "$DIR/notes.md" \
                 --prerelease \
                 "$DIR"/*
 
@@ -179,22 +91,16 @@ jobs:
               gh release create "$TAG" \
                 -R "$TARGET" \
                 --title "$NAME" \
-                --notes "$BODY" \
+                --notes-file "$DIR/notes.md" \
                 "$DIR"/*
 
             fi
 
             echo "同步完成：$TAG"
 
-            # ==================================================
-            # 删除临时目录
-            # ==================================================
-
-            rm -rf "$DIR"
-
-          done < releases-to-sync.json
+          done
 
           echo ""
-          echo "================================"
-          echo "Release 同步检查完成"
-          echo "================================"
+          echo "======================================"
+          echo "同步检查完成"
+          echo "======================================"
