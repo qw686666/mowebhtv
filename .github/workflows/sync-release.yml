@@ -1,0 +1,102 @@
+name: 同步上游 Release
+
+on:
+  schedule:
+    - cron: "0 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: 同步 Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+
+          SOURCE="Silent1566/webhtv"
+          TARGET="qw686666/mowebhtv"
+
+          echo "开始检查上游 Release..."
+
+          gh api \
+            --paginate \
+            "repos/${SOURCE}/releases?per_page=100" \
+            --slurp > releases.json
+
+          jq -s 'add' releases.json > all-releases.json
+
+          jq -c '
+            .[]
+            | select(.draft == false)
+            | select(.published_at != null)
+            | select(.published_at >= "2026-08-10T15:55:00Z")
+            | .
+          ' all-releases.json > releases-to-sync.json
+
+          while read -r release; do
+
+            TAG=$(echo "$release" | jq -r '.tag_name')
+            NAME=$(echo "$release" | jq -r '.name')
+            BODY=$(echo "$release" | jq -r '.body // ""')
+            PRERELEASE=$(echo "$release" | jq -r '.prerelease')
+
+            echo "检查 $TAG"
+
+            if gh release view "$TAG" -R "$TARGET" >/dev/null 2>&1; then
+              echo "已存在：$TAG"
+              continue
+            fi
+
+            echo "发现新 Release：$TAG"
+
+            DIR="release-$TAG"
+            rm -rf "$DIR"
+            mkdir -p "$DIR"
+
+            if ! timeout 300 gh release download "$TAG" \
+              -R "$SOURCE" \
+              -D "$DIR"; then
+              echo "下载失败：$TAG"
+              rm -rf "$DIR"
+              continue
+            fi
+
+            FILES=$(find "$DIR" -type f)
+
+            if [ -z "$FILES" ]; then
+              echo "没有 Assets：$TAG"
+              rm -rf "$DIR"
+              continue
+            fi
+
+            if [ "$PRERELEASE" = "true" ]; then
+              gh release create "$TAG" \
+                -R "$TARGET" \
+                --title "$NAME" \
+                --notes "$BODY" \
+                --prerelease \
+                "$DIR"/*
+            else
+              gh release create "$TAG" \
+                -R "$TARGET" \
+                --title "$NAME" \
+                --notes "$BODY" \
+                "$DIR"/*
+            fi
+
+            echo "同步完成：$TAG"
+
+            rm -rf "$DIR"
+
+          done < releases-to-sync.json
+
+          echo "================================"
+          echo "Release 同步检查完成"
+          echo "================================"
